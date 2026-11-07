@@ -1,0 +1,14 @@
+# secrets
+.env
+# python
+__pycache__/
+*.pyc
+.venv/
+# node
+node_modules/
+dist/
+# data (anonymized exports stay local)
+data/exports/*
+!data/exports/.gitkeep
+# os
+.DS_Store
