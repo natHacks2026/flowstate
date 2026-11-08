@@ -25,4 +25,9 @@ TODO (Backend + Lead): fill in on Saturday night.
 4. `cd frontend && npm install && npm run dev`
 
 ## Team and credits
-TODO
+Oyonti - Team Leader 
+Dev - 
+Zyle - 
+Vanya - 
+Neila - 
+Yashar - Main Speaker for the pitch
