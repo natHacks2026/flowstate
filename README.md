@@ -5,6 +5,17 @@
 Built at **natHacks 2026** (University of Alberta, Nov 6–9) on the **SWaT** dataset, a real six-stage water treatment testbed that researchers attacked 36 times.
 
 ---
+Project Summary: This project developed a cyberattack-focused simulator for the Secure Water Treatment (SWaT) system using real industrial control system data. The objective was to model how attacks on critical sensors and actuators affect plant operations and to provide a threat console dashboard for analyzing abnormal process behavior. The team selected key operational variables that operators monitor, including tank levels, telemetry, and incidents. These variables were chosen because they directly influence the safety, reliability, and performance of water treatment processes.
+
+Historical SWaT data were loaded from Excel files, and users can select specific time ranges for analysis. An attack injection framework was developed to simulate common cyberattacks, including sensor spoofing, signal freezing, and value scaling. Adjustable attack parameters such as start time, duration, and attack intensity allow users to reproduce a range of realistic attack scenarios. Normal and attacked signals are displayed side-by-side to clearly visualize process deviations. 
+
+To support future expansion, the design was informed by research on combining physical system knowledge with data-driven modeling. The simulator structure follows principles of using observational data alongside system behavior to improve interpretability and realism.
+
+The final result is an interactive attack simulation environment that enables exploration of cybersecurity threats, assessment of their impact on water treatment operations, and development of future anomaly detection and machine learning solutions. 
+---
+About the Project: ...
+
+---
 
 ## At a glance
 
