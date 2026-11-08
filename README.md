@@ -4,8 +4,6 @@
 
 Built at **natHacks 2026** (University of Alberta, Nov 6–9) on the **SWaT** dataset, a real six-stage water treatment testbed that researchers attacked 36 times.
 
-![Threat console replaying the held-out test attacks](docs/console.png)
-
 ---
 
 ## At a glance
@@ -91,7 +89,7 @@ The physics check alone, with no ML, **catches both sensor-spoofing attacks and 
 
 The reason is visible in the data:
 
-![Spoofed sensor vs pump attack against the physics estimate](docs/briefing_physics.png)
+![Spoofed sensor vs pump attack against the physics estimate]
 
 - **Spoofed sensor:** the reported level (solid) is pulled away from what physics predicts (dashed).
 - **Pump switched off by an attacker:** the effect is *physically real*, so the tank genuinely behaves that way and physics agrees.
@@ -142,7 +140,7 @@ Anomaly detection on SWaT is easy to overstate. We made deliberate choices again
 
 ## The simulator
 
-![Six hours of simulated stage 1 with injected attacks](docs/simulator.png)
+![Six hours of simulated stage 1 with injected attacks]
 
 `simulator.py` runs one tick per second:
 
@@ -196,7 +194,7 @@ Replays the held-out test days at up to 3600× speed.
 
 The pitch deck, generated from `results.json`, so the slides can never disagree with the results. Use the arrow keys to move between slides.
 
-![Briefing slide: detector vs held-out attacks](docs/briefing_matrix.png)
+![Briefing slide: detector vs held-out attacks]
 
 It covers the question, the train/validation/test timeline, a detector-by-attack matrix with delays, attacks caught vs false alarms, spoof vs pump physics traces, training curves and an honest-metrics slide.
 
