@@ -12,4 +12,4 @@ data/exports/*
 !data/exports/.gitkeep
 # os
 .DS_Store
-Physical/*
+Physical/
