@@ -764,7 +764,8 @@ function updatePerf(){
   $("pFa").innerHTML = m.false_alarms_per_day == null ? "--" : `${m.false_alarms_per_day.toFixed(1)}<small>/day</small>`;
   $("perfWho").textContent = e.label.length > 26 ? e.label.slice(0, 25) + "…" : e.label;
   const acc = m.pointwise_accuracy;
-  $("perfFoot").innerHTML = `Tested on 4 real attacks it never saw.` + (acc != null ? ` <b>Accuracy ${(acc * 100).toFixed(1)}%</b> is misleading: never alarming scores about the same.` : "");
+  let base = null; if (S.d) { let n = 0, k = 0; for (let i = 0; i < S.n; i++) if (!S.d.masked[i]) { n++; if (!S.d.label[i]) k++; } base = n ? k / n : null; }
+  $("perfFoot").innerHTML = `Tested on 4 real attacks it never saw.` + (acc != null ? ` <b>Accuracy ${(acc * 100).toFixed(1)}%</b> is misleading: a detector that never alarms would score ${base == null ? "about the same" : (base * 100).toFixed(1) + "%"}.` : "");
 }
 
 /* ------------------------------------------------------------------ loop */
