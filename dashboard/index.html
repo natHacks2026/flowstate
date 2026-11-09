@@ -270,11 +270,6 @@ body.briefing .console-only{display:none}
     <section aria-label="Incidents">
       <div class="head"><h2>Incidents</h2><span id="incCount">0 raised</span></div>
       <div class="feed" id="feed"><div class="empty">No incidents yet. Press play to replay the held-out test period; the detector raises an incident whenever its score crosses the alarm threshold.</div></div>
-      <div class="score">
-        <div class="head"><h2>Detector scorecard</h2><span>held-out test</span></div>
-        <table><thead><tr><th>Detector</th><th>Caught</th><th>Delay</th><th>False/day</th></tr></thead><tbody id="scoreBody"></tbody></table>
-        <div class="note" id="scoreNote"></div>
-      </div>
     </section>
   </main>
 
@@ -735,6 +730,7 @@ async function push(title, body, priority, tags){
 
 /* ------------------------------------------------------------------ scorecard */
 function buildScorecard(){
+  if (!$("scoreBody")) { updatePerf(); return; }
   const R = S.R, rows = R.experiments.filter(e => e.fraction === Math.max(...R.experiments.map(x => x.fraction)));
   $("scoreBody").innerHTML = rows.map(e => {
     const m = e.mean, s = e.std || {};
@@ -751,7 +747,7 @@ function buildScorecard(){
   $("scoreNote").textContent = `Scored on real attacks ${test}, never seen in training. Threshold set on validation data for at most ${R.config ? R.config.max_false_alarms : 2} false alarms/day. ${nseeds > 1 ? `Mean ± std over ${nseeds} seeds.` : "Single seed."} ${R.simulator ? "Simulator: " + R.simulator + "." : ""}`;
   markScorecard();
 }
-function markScorecard(){ for (const tr of $("scoreBody").querySelectorAll("tr")) tr.classList.toggle("cur", tr.dataset.n === S.name); updatePerf(); }
+function markScorecard(){ if ($("scoreBody")) for (const tr of $("scoreBody").querySelectorAll("tr")) tr.classList.toggle("cur", tr.dataset.n === S.name); updatePerf(); }
 function updatePerf(){
   if (!S.R) return;
   const ex = S.R.experiments.filter(e => e.name === S.name), fmax = Math.max(...ex.map(e => e.fraction)), e = ex.find(x => x.fraction === fmax);
