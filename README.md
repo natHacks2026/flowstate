@@ -202,8 +202,16 @@ interface Split { attack_ids: number[]; segments: { name: string; start: string;
 The included `results/results.json` is a **real** run with the physics baseline only, so the dashboard
 can be built now. It gains the LSTM experiments when you run step 3.
 
-## Limitations (say these in the pitch)
+## Limitations
 - Four test attacks: one missed attack changes the score by 25%. Use several seeds and report per-attack results.
 - SWaT is a research testbed, not an Alberta utility.
 - One plant stage, one simplified simulator.
-- Simulated attacks are our assumptions about attacks; real ones may differ. That's why we test only on real attacks.
+- Simulated attacks are our assumptions about attacks; real ones may differ. That's why we test only on real attacks
+
+## Team 
+Oyonti /
+Neila /
+Dev /
+Venya /
+Zyle / 
+Ashar
