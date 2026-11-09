@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-GRACE_STEPS = 24  # alerts up to 2 min (24 x 5 s) after an attack ends still count as that attack
+GRACE_STEPS = 180  # alerts up to 15 min (180 x 5 s) after an attack ends still count as that attack
 
 
 def _runs(mask: np.ndarray) -> list[tuple[int, int]]:

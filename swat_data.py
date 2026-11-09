@@ -64,11 +64,12 @@ def load_real(data_dir: str | Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     return read(paths["normal"]), read(paths["attack"])
 
 
-def stage1_masks(attack_df: pd.DataFrame, tolerance_s: int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def stage1_masks(attack_df: pd.DataFrame, tolerance_s: int = 0, recovery_s: int = 900) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return (stage1_label, masked, attack_id) for each row of the 1 s attack file.
 
     stage1_label = 1 inside a stage-1 attack (official start/end times, kept only where
-    SWaT's own label also says Attack). masked = 1 inside any OTHER attack.
+    SWaT's own label also says Attack). masked = 1 inside any OTHER attack plus a trailing
+    recovery period to account for downstream hydraulic settling.
     """
     ts = attack_df["Timestamp"].to_numpy()
     plant_label = attack_df["label"].to_numpy().astype(bool)
@@ -81,7 +82,13 @@ def stage1_masks(attack_df: pd.DataFrame, tolerance_s: int = 0) -> tuple[np.ndar
         attack_id[w] = a["id"]
     stage1_label = in_s1 & plant_label
     # rows SWaT labels as attack but that are not stage-1 attacks -> masked
-    masked = plant_label & ~in_s1
+    other_attacks = plant_label & ~in_s1
+    if recovery_s > 0:
+        # Extend the other-stage attack mask forward in time to cover the physical settling aftermath
+        extended = pd.Series(other_attacks).rolling(int(recovery_s), min_periods=1).max().to_numpy().astype(bool)
+        masked = extended & ~in_s1
+    else:
+        masked = other_attacks
     attack_id[~stage1_label] = 0
     return stage1_label.astype(np.int8), masked.astype(np.int8), attack_id
 

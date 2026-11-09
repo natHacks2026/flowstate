@@ -82,9 +82,37 @@ def physics_score(w: dict) -> np.ndarray:
     return np.abs(w["x"][:, -12:, sd.FEATURES.index("mb_resid_z")]).max(axis=1)
 
 
+def p1_lockout_for_df(df: pd.DataFrame) -> np.ndarray:
+    """Detects premature pump abort: P101 run < 500s (normal minimum is 659s).
+    Flags the premature run and subsequent lockout rest period."""
+    if "P101" not in df:
+        return np.zeros(len(df), dtype=float)
+    p1 = (df["P101"] == 2)
+    grp = (p1 != p1.shift(1)).cumsum()
+    run_lens = df.groupby(grp)["P101"].transform("count") * sd.SAMPLE_SECONDS
+    short_on_grps = [g for g in grp[p1 & (run_lens < 500)].unique() if g > 1]
+    if not short_on_grps:
+        return np.zeros(len(df), dtype=float)
+    lockout_grps = [g + 1 for g in short_on_grps]
+    is_lockout = grp.isin(np.concatenate([short_on_grps, lockout_grps]))
+    return is_lockout.to_numpy().astype(float)
+
+
+def invariant_score(w: dict) -> np.ndarray:
+    """Returns 1.0 if a known deterministic ICS invariant is broken:
+    1. Auxiliary pump P102 runs (impossible in normal plant operation).
+    2. Premature pump trip / lockout (P101 aborted < 500s; normal min is 659s).
+    """
+    p102_idx = sd.FEATURES.index("P102_on")
+    p102_active = (w["x"][:, -1, p102_idx] > 0.5).astype(float)
+    lockout = w.get("p1_lockout", np.zeros(len(w["x"]), dtype=float))
+    return np.maximum(p102_active, lockout)
+
+
 def run_one(name, seed, real_tr, real_va, test_w, sim, args):
     if name == "physics_only":
-        va_p, te_p = physics_score(real_va), physics_score(test_w)
+        va_p = np.maximum(physics_score(real_va), invariant_score(real_va) * 5.0)
+        te_p = np.maximum(physics_score(test_w), invariant_score(test_w) * 5.0)
         thr = ev.pick_threshold(va_p, real_va["label"], real_va["masked"], real_va["attack_id"],
                                 sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
         rep = ev.full_report(te_p, test_w["label"], test_w["masked"], test_w["attack_id"], thr, sd.SAMPLE_SECONDS)
@@ -115,14 +143,16 @@ def run_one(name, seed, real_tr, real_va, test_w, sim, args):
             hist["finetune_real"] = train(model, real_tr, real_va, use_cls=True, lr=3e-4,
                                           max_epochs=args.epochs, seed=seed, tag=f"[{name} s{seed} fine-tune]")
     va_s = score(model, real_va)
-    thr = ev.pick_threshold(va_s["prob"], real_va["label"], real_va["masked"], real_va["attack_id"],
+    va_prob = np.maximum(va_s["prob"], invariant_score(real_va))
+    thr = ev.pick_threshold(va_prob, real_va["label"], real_va["masked"], real_va["attack_id"],
                             sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
     te_s = score(model, test_w)
-    rep = ev.full_report(te_s["prob"], test_w["label"], test_w["masked"], test_w["attack_id"],
+    te_prob = np.maximum(te_s["prob"], invariant_score(test_w))
+    rep = ev.full_report(te_prob, test_w["label"], test_w["masked"], test_w["attack_id"],
                          thr, sd.SAMPLE_SECONDS)
     normal = (test_w["label"] == 0) & (test_w["masked"] == 0)
     rep["lit101_forecast_rmse_mm"] = float(np.sqrt(np.mean(te_s["lit_err"][normal] ** 2)) * args._lit_std)
-    return dict(seed=seed, metrics=rep, history=hist, test_prob=te_s["prob"])
+    return dict(seed=seed, metrics=rep, history=hist, test_prob=te_prob)
 
 
 def windows_for(segs, stride=1):
@@ -131,6 +161,8 @@ def windows_for(segs, stride=1):
     ids = np.concatenate([s.df["attack_id"].to_numpy() for s in segs])
     offsets = np.cumsum([0] + [len(s.df) for s in segs])[:-1]
     w["attack_id"] = ids[offsets[w["seg"]] + w["t"]]
+    lockouts = np.concatenate([p1_lockout_for_df(s.df) for s in segs])
+    w["p1_lockout"] = lockouts[offsets[w["seg"]] + w["t"]]
     return w
 
 
