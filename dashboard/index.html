@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stage 1 Threat Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0D1820; --panel:#132530; --panel-2:#0F1F29; --grid:#24414F; --rule:#1C3441;
+  --tele:#7FD7EA; --tele-dim:#3E7E8E; --text:#CFDBE1; --dim:#7A93A0; --faint:#4C6672;
+  --red:#FF3B4E; --amber:#FFB12E; --violet:#A08BFF; --ok:#4FD69C;
+  --ui:"Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--ui);font-size:14px}
+body{background:
+  radial-gradient(1200px 600px at 20% -10%, #15303d55, transparent 60%),
+  repeating-linear-gradient(0deg, transparent 0 39px, #ffffff05 39px 40px),
+  repeating-linear-gradient(90deg, transparent 0 39px, #ffffff05 39px 40px), var(--bg)}
+button,select,input{font-family:inherit;font-size:13px;color:var(--text)}
+button{background:var(--panel-2);border:1px solid var(--grid);border-radius:3px;padding:6px 11px;cursor:pointer}
+button:hover{border-color:var(--tele-dim);color:#fff}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--tele);outline-offset:2px}
+button.primary{background:var(--tele);color:#06222b;border-color:var(--tele);font-weight:600}
+select,input[type=text]{background:var(--panel-2);border:1px solid var(--grid);border-radius:3px;padding:6px 8px}
+.mono{font-family:var(--mono)}
+
+/* ------------------------------------------------ shell */
+.app{display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto;height:100vh;min-height:640px}
+.app>.bar{grid-row:1}.app>.warn{grid-row:2}.app>.band{grid-row:3}.app>main{grid-row:4}.app>.time{grid-row:5}
+.bar{display:flex;align-items:center;gap:18px;padding:10px 18px;border-bottom:1px solid var(--rule);background:#0B151C}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand b{font-size:17px;letter-spacing:.02em;font-weight:700}
+.brand span{color:var(--dim);font-size:12.5px}
+.clock{font-family:var(--mono);font-size:15px;letter-spacing:.02em}
+.clock small{color:var(--dim);font-size:11px;margin-left:6px}
+.state{display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--grid);border-radius:3px;font-family:var(--mono);font-size:12px;min-width:150px}
+.led{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.state.alarm{border-color:var(--red);color:#fff;background:#3a0f17}
+.state.alarm .led{background:var(--red);box-shadow:0 0 10px var(--red);animation:blink .7s steps(2) infinite}
+.state.scope{border-color:#5b4a22;color:var(--amber)}
+.state.scope .led{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+@keyframes blink{50%{opacity:.25}}
+label.sel{display:flex;align-items:center;gap:8px;color:var(--dim);font-size:12.5px}
+
+/* alarm band: the one orchestrated motion */
+.band{display:none;align-items:center;gap:14px;padding:9px 18px;background:linear-gradient(90deg,#4a0d17,#2a0b12 60%,#1a0d12);border-bottom:1px solid var(--red);color:#fff}
+.band.on{display:flex;animation:bandin .35s ease-out}
+.band .tag{font-family:var(--mono);font-size:12px;background:var(--red);color:#fff;padding:2px 7px;border-radius:2px}
+.band .msg{font-size:14.5px;font-weight:600}
+.band .sub{color:#ffc3ca;font-size:12.5px;margin-left:auto;font-family:var(--mono)}
+@keyframes bandin{from{transform:translateY(-100%);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.band.on{animation:none}.state.alarm .led{animation:none}}
+
+/* ------------------------------------------------ main grid */
+main{display:grid;grid-template-columns:330px minmax(0,1fr) 340px;gap:1px;background:var(--rule);min-height:0}
+section{background:var(--bg);min-height:0;display:flex;flex-direction:column}
+.head{display:flex;align-items:baseline;justify-content:space-between;padding:10px 14px 6px;border-bottom:1px solid var(--rule)}
+.head h2{margin:0;font-size:13.5px;font-weight:600;letter-spacing:.02em}
+.head span{color:var(--dim);font-size:12px}
+
+/* plant */
+.plant{padding:8px 10px 0}
+.plant svg{width:100%;height:auto;max-height:calc(100vh - 560px);min-height:200px;display:block;margin:0 auto}
+.readouts{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);margin:8px 10px;border:1px solid var(--rule)}
+.ro{background:var(--panel-2);padding:6px 10px}
+.ro .k{color:var(--dim);font-size:11.5px}
+.ro .v{font-family:var(--mono);font-size:18px;margin-top:2px}
+.ro .v small{font-size:11px;color:var(--dim);margin-left:3px}
+.ro.bad .v{color:var(--red)}
+.ro.wide{grid-column:span 2}
+.gapbar{height:5px;background:#0a141a;border:1px solid var(--grid);margin-top:6px;position:relative}
+.gapbar i{position:absolute;left:0;top:0;bottom:0;background:var(--tele-dim)}
+.ro.bad .gapbar i{background:var(--red)}
+
+/* telemetry */
+.tele{flex:1;min-height:0;position:relative}
+.tele canvas{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:6px 14px 8px;border-top:1px solid var(--rule);color:var(--dim);font-size:11.5px}
+.legend i{display:inline-block;width:14px;height:8px;margin-right:6px;vertical-align:middle}
+
+/* right column */
+.feed{flex:1;overflow:auto;min-height:0}
+.inc{padding:10px 14px;border-bottom:1px solid var(--rule);border-left:3px solid transparent}
+.inc.new{border-left-color:var(--red);background:#2a0f16}
+.inc .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.inc .id{font-family:var(--mono);font-size:12px;color:var(--red)}
+.inc .ts{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.inc .what{margin:4px 0 6px;font-weight:600}
+.inc .meta{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:11px;padding:2px 6px;border:1px solid var(--grid);border-radius:2px;color:var(--dim)}
+.chip.t{color:var(--tele);border-color:#2f5e6c}
+.chip.v{color:var(--violet);border-color:#4c4280}
+.chip.r{color:var(--red);border-color:#6b1f2a}
+.chip.a{color:var(--amber);border-color:#5b4a22}
+.empty{padding:22px 14px;color:var(--dim);line-height:1.5}
+.score{border-top:1px solid var(--rule)}
+.score table{width:100%;border-collapse:collapse;font-size:12.5px}
+.score th{color:var(--dim);font-weight:500;text-align:right;padding:6px 10px;border-bottom:1px solid var(--rule)}
+.score th:first-child,.score td:first-child{text-align:left}
+.score td{padding:7px 10px;border-bottom:1px solid var(--rule);text-align:right;font-family:var(--mono)}
+.score td:first-child{font-family:var(--ui)}
+.score tr.cur td{background:#16303c;color:#fff}
+.score tr.cur td:first-child{box-shadow:inset 3px 0 var(--tele)}
+.score .note{padding:8px 10px;color:var(--faint);font-size:11.5px;line-height:1.45}
+
+/* timeline */
+.time{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:10px 18px;border-top:1px solid var(--rule);background:#0B151C}
+.ctrls{display:flex;gap:8px;align-items:center}
+.scrub{position:relative;height:46px;cursor:pointer}
+.scrub canvas{position:absolute;inset:0;width:100%;height:100%}
+.toggles{display:flex;gap:14px;align-items:center;color:var(--dim);font-size:12.5px}
+.toggles label{display:flex;gap:6px;align-items:center;cursor:pointer}
+input[type=checkbox]{accent-color:var(--tele)}
+
+/* mode switch + briefing */
+.modes{display:flex;border:1px solid var(--grid);border-radius:3px;overflow:hidden}
+.modes button{border:0;border-radius:0;background:transparent;padding:6px 12px}
+.modes button[aria-pressed="true"]{background:var(--tele);color:#06222b;font-weight:600}
+.brief{display:none;grid-row:4 / 6;flex-direction:column;min-height:0;padding:26px 44px 16px}
+body.briefing .brief{display:flex}
+body.briefing .app>main,body.briefing .app>.time,body.briefing .band{display:none}
+body.briefing .console-only{display:none}
+.app{grid-template-columns:minmax(0,1fr)}
+.brief{min-width:0}
+.slide{flex:1;min-height:0;display:flex;flex-direction:column;gap:14px;overflow:auto}
+.slide h1{margin:0;font-size:31px;line-height:1.15;font-weight:600;max-width:38ch;letter-spacing:.005em}
+.slide .lead{margin:0;color:var(--dim);font-size:16px;line-height:1.5;max-width:70ch}
+.slide svg{width:100%;height:auto;display:block}
+.snav{display:flex;align-items:center;gap:12px;padding-top:12px;border-top:1px solid var(--rule)}
+.snav .dots{display:flex;gap:6px;margin-right:auto}
+.snav .dots i{width:22px;height:3px;background:var(--grid)}
+.snav .dots i.on{background:var(--tele)}
+.snav .count{font-family:var(--mono);color:var(--dim);font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);max-width:980px}
+.stat{background:var(--panel-2);padding:18px 20px}
+.stat b{display:block;font-family:var(--mono);font-size:44px;font-weight:500;color:var(--tele);line-height:1}
+.stat span{display:block;margin-top:8px;color:var(--text);font-size:14.5px;line-height:1.4}
+.tscroll{overflow-x:auto;max-width:100%}
+.matrix{border-collapse:collapse;font-size:15px;max-width:1100px}
+.matrix th,.matrix td{border:1px solid var(--rule);padding:12px 16px;text-align:center}
+.matrix th{color:var(--dim);font-weight:500;background:var(--panel-2)}
+.matrix th small{display:block;font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:3px;font-weight:400}
+.matrix td:first-child{text-align:left;background:var(--panel-2)}
+.matrix td.hit{background:#123a46;color:#fff;font-family:var(--mono)}
+.matrix td.part{background:#2c2a14;color:var(--amber);font-family:var(--mono)}
+.matrix td.miss{color:var(--faint);font-family:var(--mono)}
+.matrix td .k{display:block;font-size:11px;color:var(--dim);margin-top:2px}
+.foot{color:var(--faint);font-size:12.5px;line-height:1.5;max-width:90ch}
+@media (max-width:1100px){.brief{padding:18px}.stats{grid-template-columns:1fr}.slide h1{font-size:24px}}
+
+/* performance corner */
+.perf{margin:0 10px 10px;border:1px solid var(--rule);background:var(--panel-2)}
+.perf .ph{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 10px 6px;border-bottom:1px solid var(--rule)}
+.perf .ph b{font-size:12.5px;font-weight:600;letter-spacing:.02em}
+.perf .ph span{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.perf .pg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--rule)}
+.perf .pm{background:var(--panel-2);padding:7px 10px 8px}
+.perf .pm .k{color:var(--dim);font-size:11px}
+.perf .pm .v{font-family:var(--mono);font-size:19px;color:#fff;margin-top:1px}
+.perf .pm .v small{font-size:11px;color:var(--dim)}
+.perf .bar2{height:3px;background:#0a141a;margin-top:5px}
+.perf .bar2 i{display:block;height:100%;background:var(--tele)}
+.perf .pf{padding:6px 10px 8px;color:var(--faint);font-size:11px;line-height:1.45;border-top:1px solid var(--rule)}
+.perf .pf b{color:var(--dim);font-weight:500}
+/* alert windows */
+.alerts{position:fixed;right:18px;bottom:86px;z-index:30;display:flex;flex-direction:column-reverse;gap:10px;width:min(380px,calc(100vw - 32px));pointer-events:none}
+.alertwin{pointer-events:auto;background:#160c11;border:1px solid var(--red);border-radius:4px;box-shadow:0 0 0 1px #ff3b4e33,0 18px 40px #000a,0 0 30px #ff3b4e22;overflow:hidden;animation:popin .28s cubic-bezier(.2,.9,.3,1.2)}
+.alertwin .ah{display:flex;align-items:center;gap:8px;padding:7px 10px;background:linear-gradient(90deg,#ff3b4e,#c4182b);color:#fff}
+.alertwin .ah .ic{width:18px;height:18px;flex:none}
+.alertwin .ah b{font-size:12.5px;letter-spacing:.06em;font-weight:700}
+.alertwin .ah .x{margin-left:auto;background:transparent;border:0;color:#fff;padding:0 4px;font-size:16px;line-height:1}
+.alertwin .ab{padding:11px 13px 4px}
+.alertwin .sev{display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:11px;color:#ffb3bb}
+.alertwin .sev i{font-style:normal;background:#ff3b4e33;border:1px solid #ff3b4e88;color:#fff;padding:1px 6px;border-radius:2px}
+.alertwin h4{margin:6px 0 4px;font-size:15.5px;line-height:1.3;color:#fff}
+.alertwin p{margin:0 0 8px;color:#e6c9cd;font-size:12.5px;line-height:1.45}
+.alertwin dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:0 0 8px;font-size:12px}
+.alertwin dt{color:#b98c93}
+.alertwin dd{margin:0;font-family:var(--mono);color:#fff}
+.alertwin .todo{background:#ffffff08;border-left:2px solid var(--amber);padding:6px 9px;color:#f3dcb0;font-size:12px;line-height:1.4;margin-bottom:10px}
+.alertwin .af{display:flex;gap:8px;padding:0 13px 12px}
+.alertwin .af .primary{background:var(--red);border-color:var(--red);color:#fff}
+.alertwin.acked{border-color:var(--grid);box-shadow:none;opacity:.0;transform:translateX(30px);transition:opacity .25s,transform .25s}
+@keyframes popin{from{transform:translateY(16px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.alertwin{animation:none}}
+
+/* overlays */
+.drop{position:fixed;inset:0;display:none;place-items:center;background:#0D1820f2;z-index:20}
+.drop.on{display:grid}
+.drop .box{max-width:520px;border:1px dashed var(--tele-dim);padding:28px;line-height:1.55;background:var(--panel-2)}
+.drop h1{margin:0 0 8px;font-size:20px}
+.drop code{font-family:var(--mono);color:var(--tele);font-size:12.5px}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:360px;background:var(--panel);border-left:1px solid var(--grid);z-index:15;transform:translateX(100%);transition:transform .2s ease;padding:18px;display:flex;flex-direction:column;gap:14px}
+.drawer.on{transform:none}
+.drawer h3{margin:0;font-size:16px}
+.drawer p{margin:0;color:var(--dim);font-size:12.5px;line-height:1.5}
+.field{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--dim)}
+.status{font-family:var(--mono);font-size:12px;color:var(--dim);min-height:1.2em}
+.warn{display:none;padding:8px 18px;background:#3b2c08;color:var(--amber);border-bottom:1px solid #5b4a22;font-size:13px}
+.warn.on{display:block}
+
+@media (max-width:1100px){
+  .app{height:auto;grid-template-rows:none}
+  .app>.bar,.app>.warn,.app>.band,.app>main,.app>.time{grid-row:auto}
+  main{grid-template-columns:1fr}
+  section{min-height:auto}
+  .tele{flex:none;height:460px}
+  .feed{max-height:340px}
+  .time{position:sticky;bottom:0;z-index:5}
+  .time{grid-template-columns:1fr}
+  .bar{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand"><b>Stage 1 Threat Console</b><span>SWaT raw water tank T-101</span></div>
+    <div class="modes" role="group" aria-label="View"><button id="mConsole" aria-pressed="true">Console</button><button id="mBrief" aria-pressed="false">Briefing</button></div>
+    <div class="clock mono console-only" id="clock">--</div>
+    <label class="sel console-only">Detector <select id="detector"></select></label>
+    <div class="state console-only" id="state" role="status" aria-live="polite"><span class="led"></span><span id="stateText">Monitoring</span></div>
+    <button id="openSettings" aria-label="Alert settings">Alerts</button>
+  </header>
+  <div class="warn" id="warn"></div>
+  <div class="band" id="band" role="alert"><span class="tag mono" id="bandTag">INC</span><span class="msg" id="bandMsg"></span><span class="sub" id="bandSub"></span></div>
+
+  <main>
+    <section aria-label="Plant" style="overflow:auto">
+      <div class="head"><h2>Process view</h2><span>sensor vs physics</span></div>
+      <div class="plant"><svg id="plant" viewBox="0 0 320 316" role="img" aria-label="Stage 1 diagram: inlet valve MV101, flow meter FIT101, tank T-101 with level LIT101, pumps P101 and P102"></svg></div>
+      <div class="readouts">
+        <div class="ro" id="roLit"><div class="k">Level: sensor says</div><div class="v"><span id="vLit">--</span><small>mm</small></div></div>
+        <div class="ro"><div class="k">Level: physics says</div><div class="v"><span id="vEst">--</span><small>mm</small></div></div>
+        <div class="ro wide" id="roGap"><div class="k">Gap between them (big gap = sensor may be lying)</div><div class="v"><span id="vGap">--</span><small>mm</small></div><div class="gapbar"><i id="gapFill"></i></div></div>
+        <div class="ro"><div class="k">Water flowing in</div><div class="v"><span id="vFit">--</span><small>m³/h</small></div></div>
+        <div class="ro" id="roScore"><div class="k">Attack score</div><div class="v"><span id="vScore">--</span><small id="vThr"></small></div></div>
+      </div>
+      <div class="perf" id="perf" aria-label="Model performance on held-out attacks">
+        <div class="ph"><b>Model performance</b><span id="perfWho">held-out test</span></div>
+        <div class="pg">
+          <div class="pm" title="Of the moments the model raised an alarm, the share that really were attacks"><div class="k">Precision</div><div class="v" id="pPrec">--</div><div class="bar2"><i id="bPrec"></i></div></div>
+          <div class="pm" title="Of all the moments an attack was happening, the share the model flagged"><div class="k">Recall</div><div class="v" id="pRec">--</div><div class="bar2"><i id="bRec"></i></div></div>
+          <div class="pm" title="Balance of precision and recall"><div class="k">F1</div><div class="v" id="pF1">--</div><div class="bar2"><i id="bF1"></i></div></div>
+          <div class="pm" title="Real held-out attacks with at least one alarm"><div class="k">Attacks caught</div><div class="v" id="pCaught">--</div></div>
+          <div class="pm" title="Average time from attack start to first alarm"><div class="k">Avg. delay</div><div class="v" id="pDelay">--</div></div>
+          <div class="pm" title="Alarms with no attack, per day of normal operation"><div class="k">False alarms</div><div class="v" id="pFa">--</div></div>
+        </div>
+        <div class="pf" id="perfFoot"></div>
+      </div>
+    </section>
+
+    <section aria-label="Telemetry">
+      <div class="head"><h2>Telemetry</h2><span id="winLabel">2 h window</span></div>
+      <div class="tele"><canvas id="tele"></canvas></div>
+      <div class="legend">
+        <span><i style="background:var(--tele)"></i>Reported</span>
+        <span><i style="background:repeating-linear-gradient(90deg,#fff 0 3px,transparent 3px 6px);height:2px"></i>Physics estimate</span>
+        <span><i style="background:#ff3b4e55;border:1px solid var(--red)"></i>Detector alarm</span>
+        <span id="lgTruth"><i style="background:#a08bff33;border:1px solid var(--violet)"></i>Real attack (ground truth)</span>
+        <span><i style="background:repeating-linear-gradient(45deg,#ffb12e55 0 2px,transparent 2px 5px)"></i>Other-stage attack, out of scope</span>
+      </div>
+    </section>
+
+    <section aria-label="Incidents">
+      <div class="head"><h2>Incidents</h2><span id="incCount">0 raised</span></div>
+      <div class="feed" id="feed"><div class="empty">No incidents yet. Press play to replay the held-out test period; the detector raises an incident whenever its score crosses the alarm threshold.</div></div>
+    </section>
+  </main>
+
+  <div class="brief" id="brief" aria-label="Briefing slides">
+    <div class="slide" id="slide" aria-live="polite"></div>
+    <div class="snav"><div class="dots" id="dots"></div><span class="count" id="scount"></span>
+      <button id="sPrev">Previous</button><button class="primary" id="sNext">Next</button></div>
+  </div>
+
+  <footer class="time">
+    <div class="ctrls">
+      <button class="primary" id="play" aria-label="Play">Play</button>
+      <button id="nextInc" title="Jump to just before the next incident">Next incident</button>
+      <select id="speed" aria-label="Replay speed">
+        <option value="60">60×</option><option value="240" selected>240×</option><option value="900">900×</option><option value="3600">3600×</option>
+      </select>
+    </div>
+    <div class="scrub" id="scrub" aria-label="Timeline"><canvas id="scrubCv"></canvas></div>
+    <div class="toggles">
+      <label><input type="checkbox" id="truth" checked> Show ground truth</label>
+      <label><input type="checkbox" id="sound" checked> Sound</label>
+      <label title="Pause the replay while an alert window is open"><input type="checkbox" id="pauseOn" checked> Pause on alert</label>
+    </div>
+  </footer>
+</div>
+
+<div class="alerts" id="alerts" aria-live="assertive"></div>
+
+<div class="drop" id="drop">
+  <div class="box">
+    <h1>Load detector results</h1>
+    <p>Open <code>results.json</code> from the pipeline's <code>results/</code> folder, or drop it here.</p>
+    <p style="color:var(--dim);font-size:12.5px">Tip: serve the pipeline folder with <code>python -m http.server</code> and open <code>/dashboard/</code>; the console then loads <code>../results/results.json</code> automatically.</p>
+    <p><input type="file" id="file" accept=".json,application/json"></p>
+    <div class="status" id="loadStatus"></div>
+  </div>
+</div>
+
+<aside class="drawer" id="drawer" aria-label="Alert settings">
+  <h3>Phone alerts</h3>
+  <p>Incidents are pushed to phones through ntfy. Install the ntfy app, subscribe to the topic below, then send a test alert. Topic names are public, so use one that's hard to guess.</p>
+  <label class="field">ntfy server<input type="text" id="ntfyServer" value="https://ntfy.sh"></label>
+  <label class="field">Topic<input type="text" id="ntfyTopic" placeholder="e.g. swat-p1-7fk2q"></label>
+  <label class="toggles" style="color:var(--text)"><input type="checkbox" id="pushOn"> Push incidents to phones</label>
+  <div style="display:flex;gap:8px"><button class="primary" id="testPush">Send test alert</button><button id="closeSettings">Close</button></div>
+  <div class="status" id="pushStatus"></div>
+</aside>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ state */
+const S = {
+  R:null, name:null, d:null, n:0, i:0, playing:false, speed:240, last:0,
+  stepSec:15, est:null, gap:null, resid:null, residSigma:1,
+  incidents:[], fired:new Set(), truth:true, sound:true, bandTimer:null
+};
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem("s1tc."+k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem("s1tc."+k, JSON.stringify(v)); } catch {} }
+};
+const fmtT = s => s.replace("T"," ").slice(0,19);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL = {};
+function readColors(){ for (const k of ["bg","panel","grid","rule","tele","tele-dim","text","dim","faint","red","amber","violet","ok"]) COL[k]=css("--"+k); }
+
+const MITRE = {
+  sensor: ["T0856", "Spoof Reporting Message"],
+  process: ["T0855", "Unauthorized Command Message"]
+};
+
+/* ------------------------------------------------------------------ loading */
+async function boot(){
+  readColors();
+  $("ntfyServer").value = store.get("server", "https://ntfy.sh");
+  $("ntfyTopic").value = store.get("topic", "");
+  $("pushOn").checked = store.get("push", false);
+  $("sound").checked = S.sound = store.get("sound", true);
+  $("truth").checked = S.truth = store.get("truth", true);
+  const q = new URLSearchParams(location.search).get("data");
+  for (const url of [q, "results.json", "../results/results.json"].filter(Boolean)) {
+    try { const r = await fetch(url, {cache:"no-store"}); if (r.ok) { load(await r.json()); return; } } catch {}
+  }
+  $("drop").classList.add("on");
+}
+function readFile(f){
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => { try { load(JSON.parse(fr.result)); $("drop").classList.remove("on"); }
+                      catch (e) { $("loadStatus").textContent = "That file isn't valid results.json: " + e.message; } };
+  fr.readAsText(f);
+}
+$("file").addEventListener("change", e => readFile(e.target.files[0]));
+addEventListener("dragover", e => { e.preventDefault(); $("drop").classList.add("on"); });
+addEventListener("drop", e => { e.preventDefault(); readFile(e.dataTransfer.files[0]); });
+
+function load(R){
+  if (!R.replay || !Object.keys(R.replay).length) { $("loadStatus").textContent = "results.json has no replay data. Run run_experiments.py first."; $("drop").classList.add("on"); return; }
+  S.R = R;
+  const names = Object.keys(R.replay);
+  const label = n => (R.experiments.find(e => e.name === n) || {}).label || n;
+  $("detector").innerHTML = names.map(n => `<option value="${n}">${label(n)}</option>`).join("");
+  const pref = store.get("detector", null);
+  const order = ["sim_ft","real_only","sim_noanom_ft","sim_only","physics_only"];
+  const pick = names.includes(pref) ? pref : (order.find(n => names.includes(n)) || names[0]);
+  $("detector").value = pick;
+  if (R.smoke_test) { $("warn").textContent = "Smoke-test results: these numbers are meaningless. Run run_experiments.py without --smoke for real results."; $("warn").classList.add("on"); }
+  S.i = Math.round(7200 / 15 * 0.75);
+  selectDetector(pick, true);
+  buildScorecard();
+  $("drop").classList.remove("on");
+}
+
+/* ------------------------------------------------------------------ derived series */
+function selectDetector(name, first){
+  S.name = name; store.set("detector", name);
+  const d = S.d = S.R.replay[name];
+  S.n = d.t.length;
+  const t0 = Date.parse(d.t[0].replace(" ","T")), t1 = Date.parse(d.t[1].replace(" ","T"));
+  S.stepSec = Math.max(1, Math.round((t1 - t0)/1000));
+  const mb = S.R.data.mass_balance, k = S.stepSec / (S.R.data.sample_seconds || 5);
+  const est = new Float32Array(S.n), resid = new Float32Array(S.n), gap = new Float32Array(S.n);
+  est[0] = d.LIT101[0];
+  for (let i = 1; i < S.n; i++) {
+    const pump = (d.P101[i-1] === 2 || d.P102[i-1] === 2) ? 1 : 0;
+    const step = k * (mb.a * d.FIT101[i-1] - mb.b * pump + mb.c);
+    est[i] = Math.min(1100, Math.max(0, est[i-1] + step));
+    est[i] += 0.02 * (d.LIT101[i] - est[i]);           // slow pull toward the sensor
+    resid[i] = d.LIT101[i] - (d.LIT101[i-1] + step);  // one-step mass-balance residual
+    gap[i] = d.LIT101[i] - est[i];
+  }
+  S.est = est; S.resid = resid; S.gap = gap;
+  const normal = []; for (let i = 1; i < S.n; i++) if (!d.label[i] && !d.masked[i]) normal.push(Math.abs(resid[i]));
+  normal.sort((a,b)=>a-b); S.residSigma = Math.max(0.5, 1.4826 * normal[Math.floor(normal.length/2)]);
+  buildIncidents();
+  // incidents before the playhead are history, not new alarms
+  S.fired = new Set(S.incidents.filter(x => x.s <= S.i).map(x => x.id));
+  renderFeed(); markScorecard(); drawScrub(); frame(true);
+  if (!first) clearBand();
+}
+
+function buildIncidents(){
+  const d = S.d, thr = d.threshold, out = [];
+  let s = -1, gapCount = 0;
+  const MERGE = Math.ceil(60 / S.stepSec);          // alarms < 1 min apart are one incident
+  for (let i = 0; i <= S.n; i++) {
+    const on = i < S.n && d.score[i] >= thr && !d.masked[i];
+    if (on) { if (s < 0) s = i; gapCount = 0; }
+    else if (s >= 0) { if (++gapCount > MERGE || i === S.n) { out.push([s, i - gapCount]); s = -1; gapCount = 0; } }
+  }
+  const grace = Math.ceil(120 / S.stepSec);
+  S.incidents = out.map(([a, b], k) => {
+    let peak = 0, maxRes = 0, truth = 0;
+    for (let i = a; i <= b; i++) { peak = Math.max(peak, d.score[i]); }
+    for (let i = Math.max(1, a - 4); i <= Math.min(S.n - 1, b + 1); i++) maxRes = Math.max(maxRes, Math.abs(S.resid[i]));
+    for (let i = Math.max(0, a - grace); i <= b; i++) if (d.attack_id[i]) { truth = d.attack_id[i]; break; }
+    const sensor = maxRes > 6 * S.residSigma;
+    return { id: k + 1, s: a, e: b, peak, maxRes, truth, kind: sensor ? "sensor" : "process" };
+  });
+}
+
+/* ------------------------------------------------------------------ plant diagram */
+const plantSvg = $("plant");
+function plantMarkup(){
+  const M = 'font-family="JetBrains Mono, monospace"';
+  return `
+  <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="${COL.amber}" stroke-opacity=".5" stroke-width="2"/></pattern></defs>
+  <text x="6" y="12" ${M} font-size="9.5" fill="${COL.faint}">raw water in</text>
+  <path d="M6 40 H120 V78" fill="none" stroke="${COL.grid}" stroke-width="6"/>
+  <path id="flowIn" d="M6 40 H120 V78" fill="none" stroke="${COL.tele}" stroke-width="2" stroke-dasharray="6 8"/>
+  <g id="valve" transform="translate(44 40)">
+    <path d="M-11 -9 L11 9 L11 -9 L-11 9 Z" fill="${COL.panel}" stroke="${COL.dim}" stroke-width="1.5"/>
+    <text x="0" y="-15" text-anchor="middle" ${M} font-size="10" fill="${COL.text}">MV101</text>
+    <text id="valveState" x="0" y="23" text-anchor="middle" ${M} font-size="9" fill="${COL.dim}">--</text>
+  </g>
+  <g transform="translate(92 40)"><circle r="8" fill="${COL.panel}" stroke="${COL.dim}" stroke-width="1.5"/>
+    <text x="0" y="3.2" text-anchor="middle" ${M} font-size="7.5" fill="${COL.text}">FI</text>
+    <text x="0" y="-15" text-anchor="middle" ${M} font-size="10" fill="${COL.text}">FIT101</text></g>
+  <rect id="tankBody" x="70" y="78" width="150" height="190" rx="3" fill="${COL.panel}" stroke="${COL.dim}" stroke-width="1.5"/>
+  <clipPath id="tankClip"><rect x="71.5" y="79.5" width="147" height="187"/></clipPath>
+  <g clip-path="url(#tankClip)">
+    <rect id="water" x="70" y="268" width="150" height="0" fill="${COL.tele}" fill-opacity=".22"/>
+    <line id="waterTop" x1="70" x2="220" y1="268" y2="268" stroke="${COL.tele}" stroke-width="2"/>
+    <line id="ghost" x1="70" x2="220" y1="268" y2="268" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="5 4"/>
+  </g>
+  <g ${M} font-size="9" fill="${COL.faint}" id="marks"></g>
+  <text x="145" y="96" text-anchor="middle" font-family="Chakra Petch, sans-serif" font-size="12" font-weight="600" fill="${COL.text}">T-101</text>
+  <text id="ghostLbl" x="216" y="0" text-anchor="end" ${M} font-size="9.5" fill="#fff">physics</text>
+  <text id="sensLbl" x="75" y="0" ${M} font-size="9.5" fill="${COL.tele}">LIT101</text>
+  <path d="M220 250 H314 M232 250 V286 H272 V250" fill="none" stroke="${COL.grid}" stroke-width="5"/>
+  <path id="flowOut" d="M220 250 H314" fill="none" stroke="${COL.tele}" stroke-width="2" stroke-dasharray="6 8"/>
+  <text x="314" y="233" text-anchor="end" ${M} font-size="9.5" fill="${COL.faint}">to stage 2</text>
+  <g id="p1" transform="translate(252 250)"><circle r="11" fill="${COL.panel}" stroke="${COL.dim}" stroke-width="1.5"/><path d="M-5 -5 L7 0 L-5 5 Z" fill="${COL.dim}"/></g>
+  <text x="252" y="275" text-anchor="middle" ${M} font-size="10" fill="${COL.text}">P101</text>
+  <g id="p2" transform="translate(252 286)"><circle r="11" fill="${COL.panel}" stroke="${COL.dim}" stroke-width="1.5"/><path d="M-5 -5 L7 0 L-5 5 Z" fill="${COL.dim}"/></g>
+  <text x="252" y="310" text-anchor="middle" ${M} font-size="10" fill="${COL.text}">P102</text>
+  <rect id="scopeHatch" x="0" y="0" width="320" height="316" fill="url(#hatch)" opacity="0"/>`;
+}
+const LV = v => 268 - Math.max(0, Math.min(1100, v)) / 1100 * 186;   // level (mm) -> svg y
+function drawMarks(){
+  const g = $("marks"); if (!g) return;
+  g.innerHTML = [[250,"LL"],[500,"L"],[800,"H"],[1000,"HH"]].map(([v,n]) =>
+    `<line x1="70" x2="78" y1="${LV(v)}" y2="${LV(v)}" stroke="${COL.faint}"/><text x="58" y="${LV(v)+3}" text-anchor="end">${n}</text>`).join("");
+}
+function updatePlant(i, alarm, scope){
+  const d = S.d, lit = d.LIT101[i], est = S.est[i];
+  const y = LV(lit), ye = LV(est);
+  $("water").setAttribute("y", y); $("water").setAttribute("height", 268 - y);
+  $("waterTop").setAttribute("y1", y); $("waterTop").setAttribute("y2", y);
+  $("ghost").setAttribute("y1", ye); $("ghost").setAttribute("y2", ye);
+  const apart = Math.abs(ye - y) > 9;
+  $("ghostLbl").setAttribute("y", ye + (ye > y ? 12 : -4)); $("ghostLbl").style.opacity = apart ? 1 : 0;
+  $("sensLbl").setAttribute("y", y + (ye > y ? -4 : 12));
+  const bad = Math.abs(S.gap[i]) > 30;
+  const accent = alarm ? COL.red : COL.tele;
+  $("water").setAttribute("fill", accent); $("waterTop").setAttribute("stroke", accent); $("sensLbl").setAttribute("fill", accent);
+  $("tankBody").setAttribute("stroke", alarm ? COL.red : (bad ? COL.amber : COL.dim));
+  $("tankBody").setAttribute("stroke-width", alarm ? 2.5 : 1.5);
+  const mv = d.MV101[i];
+  $("valveState").textContent = mv === 2 ? "OPEN" : mv === 1 ? "CLOSED" : "MOVING";
+  $("valve").querySelector("path").setAttribute("fill", mv === 2 ? COL.tele : mv === 0 ? COL.amber : COL.panel);
+  for (const [id, on] of [["p1", d.P101[i] === 2], ["p2", d.P102[i] === 2]]) {
+    const g = $(id); g.querySelector("circle").setAttribute("stroke", on ? COL.tele : COL.dim);
+    g.querySelector("path").setAttribute("fill", on ? COL.tele : COL.faint);
+  }
+  const inflow = d.FIT101[i] > 0.3, out = d.P101[i] === 2 || d.P102[i] === 2;
+  $("flowIn").style.opacity = inflow ? 1 : 0; $("flowOut").style.opacity = out ? 1 : 0;
+  $("scopeHatch").setAttribute("opacity", scope ? .35 : 0);
+}
+let dash = 0;
+function animateFlow(){ dash = (dash + 0.6) % 14; $("flowIn").setAttribute("stroke-dashoffset", -dash); $("flowOut").setAttribute("stroke-dashoffset", -dash); }
+
+/* ------------------------------------------------------------------ telemetry canvas */
+const cv = $("tele"), ctx = cv.getContext("2d");
+function sizeCanvas(c){ const r = c.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  const w = Math.max(10, Math.round(r.width * dpr)), h = Math.max(10, Math.round(r.height * dpr));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return [w, h, dpr]; }
+
+function drawTele(){
+  const [W, H, dpr] = sizeCanvas(cv); const d = S.d; if (!d) return;
+  ctx.clearRect(0, 0, W, H);
+  const span = Math.round(7200 / S.stepSec);               // 2 hours
+  const right = Math.round(span * 0.25);
+  let a = Math.max(0, Math.floor(S.i) - (span - right)); let b = Math.min(S.n - 1, a + span);
+  a = Math.max(0, b - span);
+  const padL = 64 * dpr, padR = 14 * dpr, plotW = W - padL - padR;
+  const X = i => padL + (i - a) / (b - a) * plotW;
+  const strips = [
+    {name:"LIT101", unit:"mm", h:.36, lo:0, hi:1100, ticks:[250,500,800,1000]},
+    {name:"FIT101", unit:"m³/h", h:.16, lo:0, hi:3.2, ticks:[0,1,2,3]},
+    {name:"Actuators", unit:"", h:.15},
+    {name:"Score", unit:"", h:.32, lo:0, hi:null}
+  ];
+  let maxS = 0; for (let i = a; i <= b; i++) maxS = Math.max(maxS, d.score[i]);
+  strips[3].hi = Math.max(d.threshold * 2.2, Math.min(maxS * 1.08, d.threshold * 6), 1e-6);
+  let y0 = 8 * dpr; const gapPx = 10 * dpr, usable = H - y0 - gapPx * 4;
+  ctx.font = `${11 * dpr}px "JetBrains Mono", monospace`;
+  for (const st of strips) {
+    const h = usable * st.h, top = y0, bot = y0 + h;
+    const Y = v => bot - (v - st.lo) / (st.hi - st.lo) * h;
+    // frame + shading
+    ctx.fillStyle = "#0b161d"; ctx.fillRect(padL, top, plotW, h);
+    shadeRuns(i => d.masked[i], a, b, X, top, h, "hatch");
+    if (S.truth) shadeRuns(i => d.attack_id[i] > 0, a, b, X, top, h, COL.violet + "2a", COL.violet);
+    if (st.name === "Score") for (const inc of S.incidents) if (inc.e >= a && inc.s <= b && inc.s <= S.i)
+      { ctx.fillStyle = COL.red + "30"; ctx.fillRect(X(inc.s), top, Math.max(2, X(Math.min(inc.e, S.i)) - X(inc.s)), h); }
+    ctx.strokeStyle = COL.rule; ctx.lineWidth = 1; ctx.strokeRect(padL + .5, top + .5, plotW - 1, h - 1);
+    ctx.fillStyle = COL.dim; ctx.textAlign = "left";
+    if (st.name !== "Actuators") ctx.fillText(st.name + (st.unit ? "  " + st.unit : ""), padL + 8 * dpr, top + 14 * dpr);
+    ctx.textAlign = "right";
+    if (st.ticks) for (const t of st.ticks) { const y = Y(t); ctx.strokeStyle = COL.rule; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+      ctx.fillStyle = COL.faint; ctx.fillText(String(t), padL - 8 * dpr, y + 4 * dpr); }
+    const upto = Math.min(b, Math.floor(S.i));
+    ctx.save(); ctx.beginPath(); ctx.rect(padL, top, plotW, h); ctx.clip();
+    if (st.name === "LIT101") {
+      line(i => S.est[i], a, upto, X, Y, "#ffffffb0", 1.3 * dpr, [5 * dpr, 4 * dpr]);
+      line(i => d.LIT101[i], a, upto, X, Y, COL.tele, 1.6 * dpr);
+    } else if (st.name === "FIT101") {
+      line(i => d.FIT101[i], a, upto, X, Y, COL.tele, 1.4 * dpr);
+    } else if (st.name === "Actuators") {
+      const rows = [["MV101", i => d.MV101[i] === 2 ? 1 : d.MV101[i] === 0 ? .5 : 0], ["P101", i => d.P101[i] === 2 ? 1 : 0], ["P102", i => d.P102[i] === 2 ? 1 : 0]];
+      rows.forEach(([nm, f], r) => {
+        const rh = h / 3, ry = top + r * rh;
+        for (let i = a; i <= upto; i++) { const v = f(i); if (!v) continue;
+          ctx.fillStyle = v === 1 ? COL["tele-dim"] : COL.amber; ctx.fillRect(X(i), ry + 3 * dpr, Math.max(1, X(i + 1) - X(i)) + .5, rh - 6 * dpr); }
+      });
+    } else {
+      const ty = Y(d.threshold);
+      ctx.strokeStyle = COL.red; ctx.setLineDash([6 * dpr, 4 * dpr]); ctx.lineWidth = 1.2 * dpr;
+      ctx.beginPath(); ctx.moveTo(padL, ty); ctx.lineTo(padL + plotW, ty); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = COL.red; ctx.textAlign = "right"; ctx.fillText("threshold", padL + plotW - 6 * dpr, ty - 5 * dpr);
+      line(i => d.score[i], a, upto, X, Y, COL.text, 1.4 * dpr);
+    }
+    ctx.restore();
+    if (st.name === "Actuators") ["MV101", "P101", "P102"].forEach((nm, r) => {
+      ctx.textAlign = "right"; ctx.fillStyle = COL.dim; ctx.fillText(nm, padL - 8 * dpr, top + (r + .5) * h / 3 + 4 * dpr); });
+    y0 = bot + gapPx;
+  }
+  // playhead
+  const px = X(Math.min(S.i, b));
+  ctx.strokeStyle = "#ffffffcc"; ctx.lineWidth = 1 * dpr; ctx.beginPath(); ctx.moveTo(px, 4 * dpr); ctx.lineTo(px, H - 4 * dpr); ctx.stroke();
+  // time ticks
+  ctx.fillStyle = COL.faint; ctx.textAlign = "center";
+  const every = Math.round(1800 / S.stepSec);
+  for (let i = Math.ceil(a / every) * every; i <= b; i += every) ctx.fillText(d.t[i].slice(11, 16), X(i), H - 1 * dpr);
+}
+function line(f, a, b, X, Y, color, w, dashArr){
+  if (b <= a) return;
+  ctx.strokeStyle = color; ctx.lineWidth = w; ctx.setLineDash(dashArr || []); ctx.beginPath();
+  for (let i = a; i <= b; i++) { const x = X(i), y = Y(f(i)); i === a ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+  ctx.stroke(); ctx.setLineDash([]);
+}
+function shadeRuns(pred, a, b, X, top, h, fill, edge){
+  let s = -1;
+  for (let i = a; i <= b + 1; i++) {
+    const on = i <= b && pred(i);
+    if (on && s < 0) s = i;
+    if (!on && s >= 0) {
+      const x0 = X(s), x1 = X(i);
+      if (fill === "hatch") { ctx.save(); ctx.beginPath(); ctx.rect(x0, top, x1 - x0, h); ctx.clip();
+        ctx.strokeStyle = COL.amber + "40"; ctx.lineWidth = 1;
+        for (let x = x0 - h; x < x1; x += 7) { ctx.beginPath(); ctx.moveTo(x, top + h); ctx.lineTo(x + h, top); ctx.stroke(); } ctx.restore(); }
+      else { ctx.fillStyle = fill; ctx.fillRect(x0, top, x1 - x0, h);
+        if (edge) { ctx.strokeStyle = edge + "90"; ctx.beginPath(); ctx.moveTo(x0 + .5, top); ctx.lineTo(x0 + .5, top + h); ctx.stroke(); } }
+      s = -1;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ scrubber */
+const sc = $("scrubCv"), sctx = sc.getContext("2d");
+function drawScrub(){
+  const [W, H, dpr] = sizeCanvas(sc); const d = S.d; if (!d) return;
+  sctx.clearRect(0, 0, W, H);
+  const X = i => i / (S.n - 1) * W;
+  sctx.fillStyle = "#0b161d"; sctx.fillRect(0, 0, W, H);
+  // masked
+  sctx.fillStyle = COL.amber + "26";
+  for (let i = 0; i < S.n; i++) if (d.masked[i]) sctx.fillRect(X(i), 0, Math.max(1, W / S.n), H);
+  // score sparkline
+  let mx = 0; for (const v of d.score) mx = Math.max(mx, v);
+  mx = Math.max(mx, d.threshold * 1.4);
+  sctx.strokeStyle = COL["tele-dim"]; sctx.lineWidth = 1 * dpr; sctx.beginPath();
+  const step = Math.max(1, Math.floor(S.n / W));
+  for (let i = 0; i < S.n; i += step) { let m = 0; for (let j = i; j < Math.min(S.n, i + step); j++) m = Math.max(m, d.score[j]);
+    const y = H - 6 * dpr - m / mx * (H - 16 * dpr); i === 0 ? sctx.moveTo(X(i), y) : sctx.lineTo(X(i), y); }
+  sctx.stroke();
+  sctx.font = `${10 * dpr}px "JetBrains Mono", monospace`; sctx.textAlign = "center";
+  let lastLbl = -1e9, row = 0;
+  if (S.truth) for (const at of S.R.data.attacks) {
+    const idx = []; for (let i = 0; i < S.n; i++) if (d.attack_id[i] === at.id) idx.push(i);
+    if (!idx.length) continue;
+    sctx.fillStyle = COL.violet + "55"; sctx.fillRect(X(idx[0]), 0, Math.max(3 * dpr, X(idx[idx.length - 1]) - X(idx[0])), H);
+    const x = X(idx[0]); row = (x - lastLbl < 26 * dpr) ? 1 - row : 0; lastLbl = x;
+    sctx.fillStyle = COL.violet; sctx.textAlign = row ? "left" : "right"; sctx.fillText("#" + at.id, x + (row ? 4 : -4) * dpr, 11 * dpr);
+  }
+  sctx.fillStyle = COL.faint; sctx.textAlign = "left";
+  for (let i = 1; i < S.n; i++) if (d.t[i].slice(0, 10) !== d.t[i - 1].slice(0, 10)) { sctx.fillRect(X(i), H - 14 * dpr, 1, 14 * dpr); sctx.fillText(d.t[i].slice(5, 10), X(i) + 4 * dpr, H - 4 * dpr); }
+  for (const inc of S.incidents) { sctx.fillStyle = COL.red; sctx.fillRect(X(inc.s) - 1 * dpr, H - 7 * dpr, 2.5 * dpr, 7 * dpr); }
+  const px = X(S.i); sctx.fillStyle = "#fff"; sctx.fillRect(px - 1 * dpr, 0, 2 * dpr, H);
+}
+function seekFromEvent(e){ const r = $("scrub").getBoundingClientRect(); seek((e.clientX - r.left) / r.width * (S.n - 1)); }
+$("scrub").addEventListener("mousedown", e => { seekFromEvent(e); const mv = ev => seekFromEvent(ev);
+  addEventListener("mousemove", mv); addEventListener("mouseup", () => removeEventListener("mousemove", mv), {once:true}); });
+function seek(i){
+  S.i = Math.max(0, Math.min(S.n - 1, i));
+  S.fired = new Set(S.incidents.filter(x => x.s <= S.i).map(x => x.id));
+  clearBand(); renderFeed(); frame(true);
+}
+
+/* ------------------------------------------------------------------ incidents + alerts */
+function incidentText(inc){
+  if (inc.kind === "sensor") return {title:"LIT101 disagrees with tank physics", why:`Reported level moved ${Math.round(inc.maxRes)} mm more than inflow and pumps allow. Possible spoofed level sensor.`};
+  return {title:"Abnormal valve / pump behaviour", why:"Actuator pattern doesn't match learned normal operation. Possible unauthorized command to MV101, P101 or P102."};
+}
+function renderFeed(){
+  const shown = S.incidents.filter(x => S.fired.has(x.id)).slice().reverse();
+  $("incCount").textContent = `${shown.length} raised`;
+  if (!shown.length) { $("feed").innerHTML = `<div class="empty">No incidents yet. Press play to replay the held-out test period; the detector raises an incident whenever its score crosses the alarm threshold.</div>`; return; }
+  $("feed").innerHTML = shown.map((inc, k) => {
+    const tx = incidentText(inc), [tid, tname] = MITRE[inc.kind];
+    const dur = Math.max(S.stepSec, (Math.min(inc.e, Math.floor(S.i)) - inc.s + 1) * S.stepSec);
+    let truth = "";
+    if (S.truth) {
+      if (inc.truth) { const at = S.R.data.attacks.find(a => a.id === inc.truth);
+        truth = `<span class="chip v">Real attack #${inc.truth}${at ? ": " + at.what : ""}</span>`; }
+      else truth = `<span class="chip a">No attack: false alarm</span>`;
+    }
+    return `<div class="inc ${k === 0 && S.playing ? "new" : ""}">
+      <div class="top"><span class="id">INC-${String(inc.id).padStart(3,"0")}</span><span class="ts">${fmtT(S.d.t[inc.s])}</span></div>
+      <div class="what">${tx.title}</div>
+      <div style="color:var(--dim);font-size:12.5px;line-height:1.45;margin-bottom:7px">${tx.why}</div>
+      <div class="meta"><span class="chip r">score ${inc.peak.toFixed(3)}</span><span class="chip t">${tid} ${tname}</span><span class="chip">${Math.round(dur / 60 * 10) / 10} min</span>${truth}</div>
+    </div>`;
+  }).join("");
+}
+function fire(inc){
+  S.fired.add(inc.id);
+  const tx = incidentText(inc);
+  $("bandTag").textContent = "INC-" + String(inc.id).padStart(3, "0");
+  $("bandMsg").textContent = tx.title;
+  $("bandSub").textContent = `${fmtT(S.d.t[inc.s])}  score ${inc.peak.toFixed(3)} > ${S.d.threshold.toFixed(3)}`;
+  $("band").classList.remove("on"); void $("band").offsetWidth; $("band").classList.add("on");
+  clearTimeout(S.bandTimer); S.bandTimer = setTimeout(clearBand, 9000);
+  if (S.sound) beep();
+  showAlert(inc, tx);
+  if ($("pushOn").checked) push(`Stage 1 incident INC-${String(inc.id).padStart(3,"0")}`, `${tx.title}. ${tx.why} (${fmtT(S.d.t[inc.s])})`, "urgent", "rotating_light");
+  renderFeed();
+}
+function clearBand(){ $("band").classList.remove("on"); }
+const ALERT_ICON = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><path d="M12 2 3 6v6c0 5 3.8 8.8 9 10 5.2-1.2 9-5 9-10V6z"/><path d="M12 8v5M12 16.5v.5" stroke-linecap="round"/></svg>`;
+function showAlert(inc, tx){
+  const id = "INC-" + String(inc.id).padStart(3, "0"), sensor = inc.kind === "sensor", [tid, tname] = MITRE[inc.kind];
+  const sev = inc.peak >= S.d.threshold * 2 ? "CRITICAL" : "HIGH";
+  const w = document.createElement("div");
+  w.className = "alertwin"; w.setAttribute("role", "alert");
+  w.innerHTML = `<div class="ah">${ALERT_ICON}<b>SECURITY ALERT</b><button class="x" aria-label="Dismiss">×</button></div>
+    <div class="ab">
+      <div class="sev"><i>${sev}</i><span>${id}</span><span style="margin-left:auto">Stage 1, tank T-101</span></div>
+      <h4>${sensor ? "Tank level sensor may be lying" : "Pump or valve acting abnormally"}</h4>
+      <p>${sensor ? `The level sensor reports a value the tank's physics can't explain (off by ${Math.round(inc.maxRes)} mm). Someone may be feeding it false readings.`
+                  : "The pumps and valve aren't behaving like normal operation. Someone may be sending unauthorized commands."}</p>
+      <dl><dt>Time</dt><dd>${fmtT(S.d.t[inc.s])}</dd>
+          <dt>Equipment</dt><dd>${sensor ? "LIT101 level sensor" : "P101 / P102 pumps, MV101 valve"}</dd>
+          <dt>Attack score</dt><dd>${inc.peak.toFixed(3)} (alarm at ${S.d.threshold.toFixed(3)})</dd>
+          <dt>Technique</dt><dd>MITRE ${tid} ${tname}</dd></dl>
+      <div class="todo">${sensor ? "Check the tank level by eye or with a second gauge before trusting the control screen."
+                                 : "Check the pump and valve locally, and switch the station to manual control if they don't match the screen."}</div>
+    </div>
+    <div class="af"><button class="primary ack">Acknowledge</button><button class="look">Show on timeline</button></div>`;
+  const close = () => { w.classList.add("acked"); setTimeout(() => w.remove(), 260); if (!$("alerts").querySelector(".alertwin:not(.acked)") && $("pauseOn").checked && S.pausedByAlert) { S.pausedByAlert = false; setPlaying(true); } };
+  w.querySelector(".x").onclick = close; w.querySelector(".ack").onclick = close;
+  w.querySelector(".look").onclick = () => { S.pausedByAlert = false; setPlaying(false); seek(inc.s + 2); };
+  const box = $("alerts"); box.appendChild(w);
+  while (box.children.length > 3) box.firstElementChild.remove();
+  if ($("pauseOn").checked && S.playing) { S.pausedByAlert = true; setPlaying(false); }
+  w.querySelector(".ack").focus({preventScroll:true});
+}
+let actx = null;
+function beep(){
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    [0, .18, .36].forEach((t, k) => { const o = actx.createOscillator(), g = actx.createGain();
+      o.type = "square"; o.frequency.value = k === 1 ? 660 : 880; g.gain.value = .05;
+      o.connect(g); g.connect(actx.destination); o.start(actx.currentTime + t); o.stop(actx.currentTime + t + .12); });
+  } catch {}
+}
+async function push(title, body, priority, tags){
+  const server = $("ntfyServer").value.trim().replace(/\/+$/, ""), topic = $("ntfyTopic").value.trim();
+  if (!topic) { $("pushStatus").textContent = "Set a topic to send phone alerts."; return false; }
+  try {
+    const r = await fetch(`${server}/${encodeURIComponent(topic)}`, { method:"POST", body,
+      headers:{ "Title": title.replace(/[^\x20-\x7E]/g, ""), "Priority": priority, "Tags": tags } });
+    $("pushStatus").textContent = r.ok ? `Sent to ${topic} at ${new Date().toLocaleTimeString()}` : `ntfy answered ${r.status}. Check the server and topic.`;
+    return r.ok;
+  } catch (e) { $("pushStatus").textContent = "Couldn't reach ntfy. Check the network or server URL."; return false; }
+}
+
+/* ------------------------------------------------------------------ scorecard */
+function buildScorecard(){
+  if (!$("scoreBody")) { updatePerf(); return; }
+  const R = S.R, rows = R.experiments.filter(e => e.fraction === Math.max(...R.experiments.map(x => x.fraction)));
+  $("scoreBody").innerHTML = rows.map(e => {
+    const m = e.mean, s = e.std || {};
+    const pm = (k, dgt) => m[k] == null ? "–" : m[k].toFixed(dgt) + (s[k] ? `±${s[k].toFixed(dgt)}` : "");
+    return `<tr data-n="${e.name}" tabindex="0"><td>${e.label}</td><td>${pm("attacks_detected", 0)}/${m.attacks_total}</td>
+      <td>${m.mean_delay_s == null ? "–" : Math.round(m.mean_delay_s) + " s"}</td><td>${pm("false_alarms_per_day", 1)}</td></tr>`;
+  }).join("");
+  for (const tr of $("scoreBody").querySelectorAll("tr")) {
+    const go = () => { if (R.replay[tr.dataset.n]) { $("detector").value = tr.dataset.n; selectDetector(tr.dataset.n); } };
+    tr.addEventListener("click", go); tr.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  }
+  const test = R.data.splits.test.attack_ids.map(i => "#" + i).join(", ");
+  const nseeds = (R.config && R.config.seeds || [0]).length;
+  $("scoreNote").textContent = `Scored on real attacks ${test}, never seen in training. Threshold set on validation data for at most ${R.config ? R.config.max_false_alarms : 2} false alarms/day. ${nseeds > 1 ? `Mean ± std over ${nseeds} seeds.` : "Single seed."} ${R.simulator ? "Simulator: " + R.simulator + "." : ""}`;
+  markScorecard();
+}
+function markScorecard(){ if ($("scoreBody")) for (const tr of $("scoreBody").querySelectorAll("tr")) tr.classList.toggle("cur", tr.dataset.n === S.name); updatePerf(); }
+function updatePerf(){
+  if (!S.R) return;
+  const ex = S.R.experiments.filter(e => e.name === S.name), fmax = Math.max(...ex.map(e => e.fraction)), e = ex.find(x => x.fraction === fmax);
+  if (!e) return;
+  const m = e.mean, pct = v => v == null ? "--" : Math.round(v * 100) + "<small>%</small>";
+  const set = (id, bar, v) => { $(id).innerHTML = pct(v); if (bar) $(bar).style.width = (v == null ? 0 : Math.max(0, Math.min(1, v)) * 100) + "%"; };
+  set("pPrec", "bPrec", m.pointwise_precision); set("pRec", "bRec", m.pointwise_recall); set("pF1", "bF1", m.pointwise_f1);
+  $("pCaught").innerHTML = `${Math.round(m.attacks_detected * 10) / 10}<small>/${m.attacks_total}</small>`;
+  $("pDelay").innerHTML = m.mean_delay_s == null ? "--" : `${Math.round(m.mean_delay_s)}<small>s</small>`;
+  $("pFa").innerHTML = m.false_alarms_per_day == null ? "--" : `${m.false_alarms_per_day.toFixed(1)}<small>/day</small>`;
+  $("perfWho").textContent = e.label.length > 26 ? e.label.slice(0, 25) + "…" : e.label;
+  const acc = m.pointwise_accuracy;
+  let base = null; if (S.d) { let n = 0, k = 0; for (let i = 0; i < S.n; i++) if (!S.d.masked[i]) { n++; if (!S.d.label[i]) k++; } base = n ? k / n : null; }
+  $("perfFoot").innerHTML = `Tested on 4 real attacks it never saw.` + (acc != null ? ` <b>Accuracy ${(acc * 100).toFixed(1)}%</b> is misleading: a detector that never alarms would score ${base == null ? "about the same" : (base * 100).toFixed(1) + "%"}.` : "");
+}
+
+/* ------------------------------------------------------------------ loop */
+function frame(force){
+  const d = S.d; if (!d) return;
+  const i = Math.min(S.n - 1, Math.floor(S.i));
+  // fire incidents the playhead just reached
+  if (!force) for (const inc of S.incidents) if (!S.fired.has(inc.id) && inc.s <= i) fire(inc);
+  const active = S.incidents.find(x => x.s <= i && i <= x.e);
+  const scope = !!d.masked[i];
+  const st = $("state");
+  st.className = "state" + (active ? " alarm" : scope ? " scope" : "");
+  $("stateText").textContent = active ? `Alarm INC-${String(active.id).padStart(3,"0")}` : scope ? "Out of scope" : "Monitoring";
+  $("clock").innerHTML = `${fmtT(d.t[i])}<small>replay</small>`;
+  $("vLit").textContent = d.LIT101[i].toFixed(1);
+  $("vEst").textContent = S.est[i].toFixed(1);
+  const g = S.gap[i]; $("vGap").textContent = (g >= 0 ? "+" : "") + g.toFixed(1);
+  $("gapFill").style.width = Math.min(100, Math.abs(g) / 300 * 100) + "%";
+  $("roGap").classList.toggle("bad", Math.abs(g) > 30);
+  $("vFit").textContent = d.FIT101[i].toFixed(2);
+  $("vScore").textContent = d.score[i].toFixed(3); $("vThr").textContent = "thr " + d.threshold.toFixed(3);
+  $("roScore").classList.toggle("bad", d.score[i] >= d.threshold && !scope);
+  updatePlant(i, !!active, scope);
+  drawTele(); drawScrub();
+}
+function tick(ts){
+  if (S.playing && S.d) {
+    const dt = S.last ? (ts - S.last) / 1000 : 0;
+    S.i += dt * S.speed / S.stepSec;
+    if (S.i >= S.n - 1) { S.i = S.n - 1; setPlaying(false); }
+    frame(false);
+  }
+  animateFlow();
+  S.last = ts; requestAnimationFrame(tick);
+}
+function setPlaying(p){ S.playing = p; $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-label", p ? "Pause" : "Play");
+  if (p && S.i >= S.n - 1) seek(0); }
+
+/* ------------------------------------------------------------------ controls */
+$("play").onclick = () => { if (actx && actx.state === "suspended") actx.resume(); setPlaying(!S.playing); };
+$("speed").onchange = e => S.speed = +e.target.value;
+$("detector").onchange = e => selectDetector(e.target.value);
+$("nextInc").onclick = () => { const nx = S.incidents.find(x => x.s > S.i + 1); if (nx) { seek(nx.s - Math.round(600 / S.stepSec)); setPlaying(true); } };
+$("truth").onchange = e => { S.truth = e.target.checked; store.set("truth", S.truth); $("lgTruth").style.display = S.truth ? "" : "none"; renderFeed(); frame(true); };
+$("sound").onchange = e => { S.sound = e.target.checked; store.set("sound", S.sound); };
+$("openSettings").onclick = () => $("drawer").classList.add("on");
+$("closeSettings").onclick = () => $("drawer").classList.remove("on");
+$("ntfyServer").onchange = e => store.set("server", e.target.value.trim());
+$("ntfyTopic").onchange = e => store.set("topic", e.target.value.trim());
+$("pushOn").onchange = e => store.set("push", e.target.checked);
+$("testPush").onclick = () => { store.set("topic", $("ntfyTopic").value.trim()); store.set("server", $("ntfyServer").value.trim());
+  push("Stage 1 Threat Console test", "Phone alerts are working. Incidents from the replay will arrive here.", "high", "white_check_mark"); };
+addEventListener("keydown", e => {
+  if (e.target.matches("input,select,textarea") || document.body.classList.contains("briefing")) return;
+  if (e.code === "Space") { e.preventDefault(); $("play").click(); }
+  if (e.key === "n") $("nextInc").click();
+  if (e.key === "Escape") $("drawer").classList.remove("on");
+});
+addEventListener("resize", () => frame(true));
+
+/* ------------------------------------------------------------------ briefing slides */
+const B = { k: 0, slides: [] };
+const esc = x => String(x).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mono = 'font-family="JetBrains Mono, monospace"', ui = 'font-family="Chakra Petch, sans-serif"';
+function topExperiments(){ const R = S.R, f = Math.max(...R.experiments.map(x => x.fraction)); return R.experiments.filter(e => e.fraction === f); }
+function physicsEst(d){
+  const mb = S.R.data.mass_balance, t0 = Date.parse(d.t[0].replace(" ","T")), t1 = Date.parse(d.t[1].replace(" ","T"));
+  const k = Math.round((t1 - t0) / 1000) / (S.R.data.sample_seconds || 5), est = new Float32Array(d.t.length); est[0] = d.LIT101[0];
+  for (let i = 1; i < d.t.length; i++) { const pump = (d.P101[i-1] === 2 || d.P102[i-1] === 2) ? 1 : 0;
+    est[i] = Math.min(1100, Math.max(0, est[i-1] + k * (mb.a * d.FIT101[i-1] - mb.b * pump + mb.c))); est[i] += 0.02 * (d.LIT101[i] - est[i]); }
+  return est;
+}
+function slideQuestion(){
+  const R = S.R, test = R.data.splits.test.attack_ids, all = R.data.attacks.length, fa = R.config ? R.config.max_false_alarms : 2;
+  const names = topExperiments().map(e => e.label);
+  return `<h1>Can a simulator teach an LSTM to catch real attacks on a water plant?</h1>
+    <p class="lead">We train detectors on SWaT stage 1 (raw water tank T-101) and score them only on real attacks they never saw. ${R.simulator ? "Simulator: " + esc(R.simulator) + "." : ""}</p>
+    <div class="stats">
+      <div class="stat"><b>${all}</b><span>real attacks in SWaT target stage 1: the inlet valve, both pumps or the level sensor</span></div>
+      <div class="stat"><b>${test.length}</b><span>held out for the final test (${test.map(i => "#" + i).join(", ")}), never used for training or tuning</span></div>
+      <div class="stat"><b>≤${fa}</b><span>false alarms per day allowed when setting each alarm threshold</span></div>
+    </div>
+    <p class="foot">Detectors compared: ${names.map(esc).join("; ")}.</p>`;
+}
+function slideTimeline(){
+  const R = S.R, sp = R.data.splits, W = 1200, H = 250, L = 30, Rr = 30;
+  const segs = ["train","val","test"].map(k => sp[k].segments.find(s => s.name.startsWith("attack"))).filter(Boolean);
+  const T0 = Date.parse(segs[0].start.replace(" ","T")), T1 = Date.parse(segs[segs.length-1].end.replace(" ","T"));
+  const X = t => L + (Date.parse(String(t).replace(" ","T")) - T0) / (T1 - T0) * (W - L - Rr);
+  const kindCol = {spoof: COL.tele, pump: COL.amber, valve: COL.ok};
+  const splitName = {train:"Training", val:"Threshold tuning", test:"Held-out test"};
+  let svg = `<svg viewBox="0 0 ${W} ${H + 20}" role="img" aria-label="Timeline of the SWaT attack period with stage-1 attacks by split">`;
+  ["train","val","test"].forEach((k, j) => { const s = segs[j]; if (!s) return; const x0 = X(s.start), x1 = X(s.end);
+    svg += `<rect x="${x0}" y="70" width="${x1 - x0}" height="120" fill="${k === "test" ? "#16303c" : COL.panel}" stroke="${COL.rule}"/>
+      <text x="${x0 + 10}" y="92" ${ui} font-size="15" font-weight="600" fill="${k === "test" ? COL.tele : COL.text}">${splitName[k]}</text>
+      <text x="${x0 + 10}" y="110" ${mono} font-size="11.5" fill="${COL.dim}">${sp[k].attack_ids.map(i => "#" + i).join(" ")}</text>`; });
+  let prevL = -1e9;
+  for (const a of R.data.attacks) { const x = X(a.start); if (x < L || x > W - Rr) continue;
+    const c = kindCol[a.kind] || COL.dim, lx = Math.max(x, prevL + 36); prevL = lx;
+    svg += `<line x1="${x}" x2="${x}" y1="124" y2="190" stroke="${c}" stroke-width="2"/><circle cx="${x}" cy="124" r="5" fill="${c}"/>
+      <polyline points="${x},190 ${lx},200 ${lx},204" fill="none" stroke="${c}" stroke-width="1"/>
+      <text x="${lx}" y="220" text-anchor="middle" ${mono} font-size="12" fill="${COL.text}">#${a.id}</text>`; }
+  let day = new Date(T0); day.setHours(24, 0, 0, 0);
+  for (; day.getTime() < T1; day = new Date(day.getTime() + 864e5)) { const x = L + (day.getTime() - T0) / (T1 - T0) * (W - L - Rr);
+    svg += `<line x1="${x}" x2="${x}" y1="40" y2="190" stroke="${COL.grid}" stroke-dasharray="2 4"/>
+      <text x="${x + 4}" y="54" ${mono} font-size="11.5" fill="${COL.dim}">${day.toLocaleDateString("en-CA", {month:"short", day:"numeric"})}</text>`; }
+  [["Sensor spoof", COL.tele], ["Pump", COL.amber], ["Valve", COL.ok]].forEach(([n, c], j) =>
+    svg += `<circle cx="${L + 6 + j * 130}" cy="20" r="5" fill="${c}"/><text x="${L + 18 + j * 130}" y="24" ${ui} font-size="13" fill="${COL.dim}">${n}</text>`);
+  svg += `</svg>`;
+  return `<h1>Train on the first attacks, test on the last four</h1>
+    <p class="lead">Splits follow time, so the detector never sees the future. Attacks on other stages are left out entirely.</p>${svg}`;
+}
+function slideMatrix(){
+  const R = S.R, ex = topExperiments(), ids = R.data.splits.test.attack_ids;
+  const at = id => R.data.attacks.find(a => a.id === id) || {};
+  const cell = (e, id) => {
+    const runs = e.runs.map(r => (r.metrics.per_attack || []).find(p => p.attack_id === id)).filter(Boolean);
+    const hits = runs.filter(p => p.detected); if (!runs.length) return `<td class="miss">–</td>`;
+    const delay = hits.length ? Math.round(hits.reduce((s, p) => s + p.delay_s, 0) / hits.length) : null;
+    const cls = hits.length === runs.length ? "hit" : hits.length ? "part" : "miss";
+    const txt = hits.length ? `${delay} s` : "missed";
+    return `<td class="${cls}">${txt}${runs.length > 1 ? `<span class="k">${hits.length}/${runs.length} seeds</span>` : ""}</td>`;
+  };
+  const best = ex.slice().sort((a, b) => (b.mean.attacks_detected - a.mean.attacks_detected) || (a.mean.false_alarms_per_day - b.mean.false_alarms_per_day))[0];
+  return `<h1>${esc(best.label)} catches ${Math.round(best.mean.attacks_detected * 10) / 10} of ${best.mean.attacks_total} held-out attacks</h1>
+    <p class="lead">Each cell shows how long the detector took to raise an alarm after the attack began.</p>
+    <div class="tscroll"><table class="matrix"><thead><tr><th>Detector</th>${ids.map(id => `<th>#${id} ${esc(at(id).kind || "")}<small>${esc(at(id).what || "")}</small></th>`).join("")}<th>False alarms/day</th></tr></thead>
+    <tbody>${ex.map(e => `<tr><td>${esc(e.label)}</td>${ids.map(id => cell(e, id)).join("")}<td class="miss" style="color:var(--text)">${e.mean.false_alarms_per_day == null ? "–" : e.mean.false_alarms_per_day.toFixed(1)}</td></tr>`).join("")}</tbody></table></div>
+    <p class="foot">Thresholds were fixed on validation data before scoring. With only four test attacks, one attack changes the score by 25%.</p>`;
+}
+function hbars(rows, max, fmt, color, title){
+  const W = 560, rowH = 40, H = 40 + rows.length * rowH, L = 220;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}"><text x="0" y="18" ${ui} font-size="15" font-weight="600" fill="${COL.text}">${esc(title)}</text>`;
+  rows.forEach((r, j) => { const y = 34 + j * rowH, w = max > 0 ? (r.v || 0) / max * (W - L - 70) : 0;
+    svg += `<text x="${L - 12}" y="${y + 19}" text-anchor="end" ${ui} font-size="13.5" fill="${COL.dim}">${esc(r.label.length > 30 ? r.label.slice(0, 29) + "…" : r.label)}</text>
+      <rect x="${L}" y="${y + 5}" width="${W - L - 70}" height="20" fill="${COL["panel-2"] || "#0F1F29"}"/>
+      <rect x="${L}" y="${y + 5}" width="${Math.max(1, w)}" height="20" fill="${color}"/>
+      <text x="${L + w + 8}" y="${y + 20}" ${mono} font-size="13" fill="${COL.text}">${r.v == null ? "–" : fmt(r.v)}</text>`; });
+  return svg + `</svg>`;
+}
+function slideTradeoff(){
+  const ex = topExperiments();
+  const caught = ex.map(e => ({label: e.label, v: e.mean.attacks_detected})), fa = ex.map(e => ({label: e.label, v: e.mean.false_alarms_per_day}));
+  const tot = ex[0].mean.attacks_total, maxFa = Math.max(1, ...fa.map(r => r.v || 0));
+  return `<h1>More detections only count if the alarms stay quiet</h1>
+    <p class="lead">An operator who gets dozens of false alarms a day stops trusting the system. Both numbers are on the same held-out test days.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px;max-width:1200px">
+      ${hbars(caught, tot, v => `${Math.round(v * 10) / 10} / ${tot}`, COL.tele, "Held-out attacks caught")}
+      ${hbars(fa, maxFa, v => v.toFixed(1), COL.amber, "False alarms per day")}</div>`;
+}
+function miniTrace(d, est, id, title){
+  const idx = []; for (let i = 0; i < d.t.length; i++) if (d.attack_id[i] === id) idx.push(i);
+  if (!idx.length) return "";
+  const pad = Math.round(1500 / 15), a = Math.max(0, idx[0] - pad), b = Math.min(d.t.length - 1, idx[idx.length - 1] + pad);
+  const W = 560, H = 260, L = 46, T = 40, Bm = 30, X = i => L + (i - a) / (b - a) * (W - L - 10), Y = v => T + (1 - v / 1100) * (H - T - Bm);
+  let gap = 0; for (const i of idx) gap = Math.max(gap, Math.abs(d.LIT101[i] - est[i]));
+  const path = f => { let p = ""; for (let i = a; i <= b; i++) p += (i === a ? "M" : "L") + X(i).toFixed(1) + " " + Y(f(i)).toFixed(1); return p; };
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}"><text x="0" y="18" ${ui} font-size="15" font-weight="600" fill="${COL.text}">${esc(title)}</text>
+    <text x="0" y="34" ${mono} font-size="11.5" fill="${COL.dim}">largest sensor vs physics gap during attack: ${Math.round(gap)} mm</text>
+    <rect x="${X(idx[0])}" y="${T}" width="${X(idx[idx.length - 1]) - X(idx[0])}" height="${H - T - Bm}" fill="${COL.violet}22" stroke="${COL.violet}66"/>`;
+  for (const v of [250, 500, 800, 1000]) svg += `<line x1="${L}" x2="${W - 10}" y1="${Y(v)}" y2="${Y(v)}" stroke="${COL.rule}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" ${mono} font-size="10.5" fill="${COL.faint}">${v}</text>`;
+  svg += `<path d="${path(i => est[i])}" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <path d="${path(i => d.LIT101[i])}" fill="none" stroke="${COL.tele}" stroke-width="2"/>
+    <text x="${L}" y="${H - 8}" ${mono} font-size="10.5" fill="${COL.faint}">${d.t[a].slice(11, 16)}</text><text x="${W - 10}" y="${H - 8}" text-anchor="end" ${mono} font-size="10.5" fill="${COL.faint}">${d.t[b].slice(11, 16)}</text></svg>`;
+  return svg;
+}
+function slidePhysics(){
+  const R = S.R, d = R.replay[Object.keys(R.replay)[0]], est = physicsEst(d), ids = R.data.splits.test.attack_ids;
+  const spoof = ids.find(i => (R.data.attacks.find(a => a.id === i) || {}).kind === "spoof");
+  const pump = ids.find(i => (R.data.attacks.find(a => a.id === i) || {}).kind === "pump");
+  const what = id => (R.data.attacks.find(a => a.id === id) || {}).what || "";
+  return `<h1>Spoofed sensors break physics; pump attacks don't</h1>
+    <p class="lead">Solid: the level LIT101 reports. Dashed: the level a mass balance of inflow and pumping predicts. A lying sensor pulls them apart, so a physics check catches it. A pump switched off by an attacker is physically real, so the two lines agree, and only a learned model of normal operation can flag it.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:28px;max-width:1200px">
+      ${spoof ? miniTrace(d, est, spoof, `#${spoof}: ${what(spoof)}`) : ""}${pump ? miniTrace(d, est, pump, `#${pump}: ${what(pump)}`) : ""}</div>`;
+}
+function slideTraining(){
+  const ex = topExperiments().filter(e => e.runs[0] && Object.keys(e.runs[0].history || {}).length);
+  if (!ex.length) return null;
+  const W = 380, H = 220, L = 46, T = 34, Bm = 28;
+  const charts = ex.map(e => {
+    const h = e.runs[0].history, phases = Object.keys(h); const pts = []; phases.forEach(p => h[p].forEach(r => pts.push({p, ...r})));
+    const n = pts.length, max = Math.max(...pts.map(r => Math.max(r.train_loss, r.val_loss))) * 1.05;
+    const X = j => L + (n > 1 ? j / (n - 1) : .5) * (W - L - 10), Y = v => T + (1 - v / max) * (H - T - Bm);
+    const pth = key => pts.map((r, j) => (j ? "L" : "M") + X(j).toFixed(1) + " " + Y(r[key]).toFixed(1)).join("");
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training curves: ${esc(e.label)}"><text x="0" y="18" ${ui} font-size="14" font-weight="600" fill="${COL.text}">${esc(e.label)}</text>`;
+    let off = 0; phases.forEach((p, k) => { if (k) svg += `<line x1="${X(off - .5)}" x2="${X(off - .5)}" y1="${T}" y2="${H - Bm}" stroke="${COL.grid}" stroke-dasharray="3 3"/>`;
+      svg += `<text x="${X(off)}" y="${H - 8}" ${mono} font-size="10" fill="${COL.faint}">${p.replace("_", " ")}</text>`; off += h[p].length; });
+    svg += `<path d="${pth("train_loss")}" fill="none" stroke="${COL.dim}" stroke-width="1.6"/><path d="${pth("val_loss")}" fill="none" stroke="${COL.tele}" stroke-width="2"/></svg>`;
+    return svg; }).join("");
+  return `<h1>Training and validation loss</h1>
+    <p class="lead">Grey: training loss. Cyan: validation loss, used for early stopping. Dashed lines mark the switch from simulator pretraining to fine-tuning on real data.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;max-width:1200px">${charts}</div>`;
+}
+function slideHonesty(){
+  const ex = topExperiments(), W = 1000, rowH = 46, H = 60 + ex.length * rowH, L = 260, bw = W - L - 80;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Point-wise F1 versus point-adjusted F1">`;
+  [["Point-wise F1", COL.tele], ["Point-adjusted F1 (inflated)", COL.dim]].forEach(([n, c], j) =>
+    svg += `<rect x="${L + j * 240}" y="8" width="14" height="10" fill="${c}"/><text x="${L + 20 + j * 240}" y="18" ${ui} font-size="13" fill="${COL.dim}">${n}</text>`);
+  ex.forEach((e, j) => { const y = 40 + j * rowH, a = e.mean.pointwise_f1 || 0, b = e.mean.point_adjusted_f1 || 0;
+    svg += `<text x="${L - 12}" y="${y + 20}" text-anchor="end" ${ui} font-size="13.5" fill="${COL.dim}">${esc(e.label)}</text>
+      <rect x="${L}" y="${y + 4}" width="${Math.max(1, a * bw)}" height="14" fill="${COL.tele}"/><text x="${L + a * bw + 8}" y="${y + 16}" ${mono} font-size="12" fill="${COL.text}">${a.toFixed(3)}</text>
+      <rect x="${L}" y="${y + 21}" width="${Math.max(1, b * bw)}" height="14" fill="${COL.dim}"/><text x="${L + b * bw + 8}" y="${y + 33}" ${mono} font-size="12" fill="${COL.dim}">${b.toFixed(3)}</text>`; });
+  svg += `</svg>`;
+  return `<h1>We report the honest number first</h1>
+    <p class="lead">Many SWaT papers use point-adjusted F1, which counts a whole attack as detected if a single moment is flagged. It inflates results, so we lead with attacks caught, delay and false alarms, and show both F1 scores for comparison.</p>${svg}`;
+}
+function buildSlides(){
+  B.slides = [slideQuestion, slideTimeline, slideMatrix, slideTradeoff, slidePhysics, slideTraining, slideHonesty]
+    .map(f => { try { return f(); } catch (e) { console.warn(e); return null; } }).filter(Boolean);
+  B.k = Math.min(B.k, B.slides.length - 1); showSlide();
+}
+function showSlide(){
+  $("slide").innerHTML = B.slides[B.k];
+  $("scount").textContent = `${B.k + 1} / ${B.slides.length}`;
+  $("dots").innerHTML = B.slides.map((_, j) => `<i class="${j === B.k ? "on" : ""}"></i>`).join("");
+  $("sPrev").disabled = B.k === 0; $("sNext").disabled = B.k === B.slides.length - 1;
+}
+function setMode(brief){
+  document.body.classList.toggle("briefing", brief);
+  $("mConsole").setAttribute("aria-pressed", String(!brief)); $("mBrief").setAttribute("aria-pressed", String(brief));
+  if (brief) { setPlaying(false); if (S.R) buildSlides(); } else frame(true);
+}
+$("mConsole").onclick = () => setMode(false);
+$("mBrief").onclick = () => setMode(true);
+$("sPrev").onclick = () => { if (B.k > 0) { B.k--; showSlide(); } };
+$("sNext").onclick = () => { if (B.k < B.slides.length - 1) { B.k++; showSlide(); } };
+addEventListener("keydown", e => {
+  if (!document.body.classList.contains("briefing") || e.target.matches("input,select,textarea")) return;
+  if (e.key === "ArrowRight" || e.key === "PageDown") $("sNext").click();
+  if (e.key === "ArrowLeft" || e.key === "PageUp") $("sPrev").click();
+});
+
+readColors(); plantSvg.innerHTML = plantMarkup(); drawMarks();
+requestAnimationFrame(tick);
+boot();
+</script>
+</body>
+</html>
