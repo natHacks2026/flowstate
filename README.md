@@ -212,6 +212,6 @@ can be built now. It gains the LSTM experiments when you run step 3.
 Oyonti /
 Neila /
 Dev /
-Venya /
+Vanya /
 Zyle / 
 Ashar
