@@ -1,6 +1,8 @@
-# secrets
-.env
-# python
+# SWaT data must NOT be committed (iTrust licence; the repo is public)
+data/
+*.xlsx
+# model checkpoints / caches
+*.pt
 __pycache__/
 *.pyc
 .venv/
@@ -12,4 +14,4 @@ data/exports/*
 !data/exports/.gitkeep
 # os
 .DS_Store
-Physical/
+Physical/Physical/

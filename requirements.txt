@@ -1,0 +1,4 @@
+numpy
+pandas
+openpyxl      # only for convert_swat.py
+torch         # only for the LSTM experiments
