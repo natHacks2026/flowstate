@@ -130,13 +130,24 @@ def invariant_score(w: dict) -> np.ndarray:
 
 def run_one(name, seed, real_tr, real_va, test_w, sim, args):
     if name == "physics_only":
-        va_p = np.maximum(physics_score(real_va), invariant_score(real_va) * 5.0)
-        te_p = np.maximum(physics_score(test_w), invariant_score(test_w) * 5.0)
-        thr = ev.pick_threshold(va_p, real_va["label"], real_va["masked"], real_va["attack_id"],
-                                sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
-        rep = ev.full_report(te_p, test_w["label"], test_w["masked"], test_w["attack_id"], thr, sd.SAMPLE_SECONDS)
-        rep["lit101_forecast_rmse_mm"] = None
-        return dict(seed=seed, metrics=rep, history={}, test_prob=te_p)
+        # 1. Mass balance physics check only
+        va_raw = physics_score(real_va)
+        te_raw = physics_score(test_w)
+        thr_raw = ev.pick_threshold(va_raw, real_va["label"], real_va["masked"], real_va["attack_id"],
+                                    sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
+        rep_raw = ev.full_report(te_raw, test_w["label"], test_w["masked"], test_w["attack_id"], thr_raw, sd.SAMPLE_SECONDS)
+        rep_raw["lit101_forecast_rmse_mm"] = None
+        run_raw = dict(seed=seed, metrics=rep_raw, history={}, test_prob=te_raw)
+
+        # 2. Physics check + invariant rules
+        va_hyb = np.maximum(va_raw, invariant_score(real_va) * 5.0)
+        te_hyb = np.maximum(te_raw, invariant_score(test_w) * 5.0)
+        thr_hyb = ev.pick_threshold(va_hyb, real_va["label"], real_va["masked"], real_va["attack_id"],
+                                    sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
+        rep_hyb = ev.full_report(te_hyb, test_w["label"], test_w["masked"], test_w["attack_id"], thr_hyb, sd.SAMPLE_SECONDS)
+        rep_hyb["lit101_forecast_rmse_mm"] = None
+        run_hyb = dict(seed=seed, metrics=rep_hyb, history={}, test_prob=te_hyb)
+        return run_raw, run_hyb
 
     import torch  # only needed for the LSTM experiments
     from model import Detector, device, score, train
@@ -161,17 +172,32 @@ def run_one(name, seed, real_tr, real_va, test_w, sim, args):
                 model.freeze_backbone()
             hist["finetune_real"] = train(model, real_tr, real_va, use_cls=True, lr=3e-4,
                                           max_epochs=args.epochs, seed=seed, tag=f"[{name} s{seed} fine-tune]")
+
     va_s = score(model, real_va)
-    va_prob = np.maximum(va_s["prob"], invariant_score(real_va))
-    thr = ev.pick_threshold(va_prob, real_va["label"], real_va["masked"], real_va["attack_id"],
-                            sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
     te_s = score(model, test_w)
-    te_prob = np.maximum(te_s["prob"], invariant_score(test_w))
-    rep = ev.full_report(te_prob, test_w["label"], test_w["masked"], test_w["attack_id"],
-                         thr, sd.SAMPLE_SECONDS)
+
     normal = (test_w["label"] == 0) & (test_w["masked"] == 0)
-    rep["lit101_forecast_rmse_mm"] = float(np.sqrt(np.mean(te_s["lit_err"][normal] ** 2)) * args._lit_std)
-    return dict(seed=seed, metrics=rep, history=hist, test_prob=te_prob)
+    rmse = float(np.sqrt(np.mean(te_s["lit_err"][normal] ** 2)) * args._lit_std)
+
+    # 1. Pure ML model only (no invariant rule override)
+    thr_raw = ev.pick_threshold(va_s["prob"], real_va["label"], real_va["masked"], real_va["attack_id"],
+                                sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
+    rep_raw = ev.full_report(te_s["prob"], test_w["label"], test_w["masked"], test_w["attack_id"],
+                             thr_raw, sd.SAMPLE_SECONDS)
+    rep_raw["lit101_forecast_rmse_mm"] = rmse
+    run_raw = dict(seed=seed, metrics=rep_raw, history=hist, test_prob=te_s["prob"])
+
+    # 2. Hybrid: ML model + deterministic invariant rules
+    va_hyb = np.maximum(va_s["prob"], invariant_score(real_va))
+    te_hyb = np.maximum(te_s["prob"], invariant_score(test_w))
+    thr_hyb = ev.pick_threshold(va_hyb, real_va["label"], real_va["masked"], real_va["attack_id"],
+                                sd.SAMPLE_SECONDS, args.threshold_rule, args.max_false_alarms)
+    rep_hyb = ev.full_report(te_hyb, test_w["label"], test_w["masked"], test_w["attack_id"],
+                             thr_hyb, sd.SAMPLE_SECONDS)
+    rep_hyb["lit101_forecast_rmse_mm"] = rmse
+    run_hyb = dict(seed=seed, metrics=rep_hyb, history=hist, test_prob=te_hyb)
+
+    return run_raw, run_hyb
 
 
 def windows_for(segs, stride=1):
@@ -265,27 +291,38 @@ def main():
                 sim = {k: (subsample(a, 3000, 0), subsample(b, 3000, 0)) for k, (a, b) in sim.items()}
             results["simulator"] = source
         for name in args.experiments:
-            runs = []
+            runs_raw = []
+            runs_hyb = []
             for seed in (args.seeds[:1] if name == "physics_only" else args.seeds):
-                r = run_one(name, seed, real_tr, real_va, test_w, sim or {}, args)
-                if r:
-                    runs.append(r)
-            if not runs:
+                res = run_one(name, seed, real_tr, real_va, test_w, sim or {}, args)
+                if res:
+                    r_raw, r_hyb = res
+                    runs_raw.append(r_raw)
+                    runs_hyb.append(r_hyb)
+            if not runs_raw:
                 continue
-            mean, std = aggregate(runs)
-            results["experiments"].append(dict(
-                name=name, label=EXPERIMENTS[name], fraction=frac,
-                real_train_attacks=results["data"]["splits"]["train"]["attack_ids"] if frac == 1.0 else
-                summary["splits"]["train"]["attack_ids"],
-                mean=mean, std=std,
-                runs=[dict(seed=r["seed"], metrics=r["metrics"], history=r["history"]) for r in runs]))
-            m = runs[0]["metrics"]
-            print(f"--> {name} (fraction {frac}, seed {runs[0]['seed']}): caught {m['attacks_detected']}/{m['attacks_total']} "
-                  f"test attacks, {m['false_alarms_per_day']:.1f} false alarms/day | precision {m['pointwise_precision']:.3f}, "
-                  f"recall {m['pointwise_recall']:.3f}, F1 {m['pointwise_f1']:.3f}, accuracy {m.get('pointwise_accuracy', 0):.3f}", flush=True)
-            if frac == max(args.fractions):
-                results["replay"][name] = replay_payload(segs["test"][0], test_w, runs[0]["test_prob"],
-                                                         runs[0]["metrics"]["threshold"])
+
+            variants = [
+                ("_raw", " (Model only)" if name != "physics_only" else " (Mass balance only)", runs_raw),
+                ("", " (+ rules)", runs_hyb),
+            ]
+            for suffix, label_suffix, v_runs in variants:
+                var_name = name + suffix if suffix else name
+                var_label = EXPERIMENTS[name] + label_suffix
+                mean, std = aggregate(v_runs)
+                results["experiments"].append(dict(
+                    name=var_name, label=var_label, fraction=frac,
+                    real_train_attacks=results["data"]["splits"]["train"]["attack_ids"] if frac == 1.0 else
+                    summary["splits"]["train"]["attack_ids"],
+                    mean=mean, std=std,
+                    runs=[dict(seed=r["seed"], metrics=r["metrics"], history=r["history"]) for r in v_runs]))
+                m = v_runs[0]["metrics"]
+                print(f"--> {var_label} (fraction {frac}, seed {v_runs[0]['seed']}): caught {m['attacks_detected']}/{m['attacks_total']} "
+                      f"test attacks, {m['false_alarms_per_day']:.1f} false alarms/day | precision {m['pointwise_precision']:.3f}, "
+                      f"recall {m['pointwise_recall']:.3f}, F1 {m['pointwise_f1']:.3f}, accuracy {m.get('pointwise_accuracy', 0):.3f}", flush=True)
+                if frac == max(args.fractions):
+                    results["replay"][var_name] = replay_payload(segs["test"][0], test_w, v_runs[0]["test_prob"],
+                                                                 v_runs[0]["metrics"]["threshold"])
 
     (out / "results.json").write_text(json.dumps(results, indent=1, default=str))
     write_summary(results, out / "summary.md")

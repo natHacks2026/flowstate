@@ -72,6 +72,7 @@ section{background:var(--bg);min-height:0;display:flex;flex-direction:column}
 .ro .v{font-family:var(--mono);font-size:18px;margin-top:2px}
 .ro .v small{font-size:11px;color:var(--dim);margin-left:3px}
 .ro.bad .v{color:var(--red)}
+.ro.ok .v{color:var(--ok)}
 .ro.wide{grid-column:span 2}
 .gapbar{height:5px;background:#0a141a;border:1px solid var(--grid);margin-top:6px;position:relative}
 .gapbar i{position:absolute;left:0;top:0;bottom:0;background:var(--tele-dim)}
@@ -221,9 +222,7 @@ body.briefing .console-only{display:none}
 <div class="app">
   <header class="bar">
     <div class="brand"><b>Stage 1 Threat Console</b><span>SWaT raw water tank T-101</span></div>
-    <div class="modes" role="group" aria-label="View"><button id="mConsole" aria-pressed="true">Console</button><button id="mBrief" aria-pressed="false">Briefing</button></div>
     <div class="clock mono console-only" id="clock">--</div>
-    <label class="sel console-only">Detector <select id="detector"></select></label>
     <div class="state console-only" id="state" role="status" aria-live="polite"><span class="led"></span><span id="stateText">Monitoring</span></div>
     <button id="openSettings" aria-label="Alert settings">Alerts</button>
   </header>
@@ -238,21 +237,12 @@ body.briefing .console-only{display:none}
         <div class="ro" id="roLit"><div class="k">Level: sensor says</div><div class="v"><span id="vLit">--</span><small>mm</small></div></div>
         <div class="ro"><div class="k">Level: physics says</div><div class="v"><span id="vEst">--</span><small>mm</small></div></div>
         <div class="ro wide" id="roGap"><div class="k">Gap between them (big gap = sensor may be lying)</div><div class="v"><span id="vGap">--</span><small>mm</small></div><div class="gapbar"><i id="gapFill"></i></div></div>
+        <div class="ro" id="roValve"><div class="k">Inlet valve (MV101)</div><div class="v"><span id="vValve">--</span></div></div>
+        <div class="ro" id="roPump"><div class="k">Pumps (P101 / P102)</div><div class="v"><span id="vPump">--</span></div></div>
         <div class="ro"><div class="k">Water flowing in</div><div class="v"><span id="vFit">--</span><small>m³/h</small></div></div>
-        <div class="ro" id="roScore"><div class="k">Attack score</div><div class="v"><span id="vScore">--</span><small id="vThr"></small></div></div>
+        <div class="ro ok" id="roScore"><div class="k">Status</div><div class="v"><span id="vScore">NORMAL</span><small id="vThr"></small></div></div>
       </div>
-      <div class="perf" id="perf" aria-label="Model performance on held-out attacks">
-        <div class="ph"><b>Model performance</b><span id="perfWho">held-out test</span></div>
-        <div class="pg">
-          <div class="pm" title="Of the moments the model raised an alarm, the share that really were attacks"><div class="k">Precision</div><div class="v" id="pPrec">--</div><div class="bar2"><i id="bPrec"></i></div></div>
-          <div class="pm" title="Of all the moments an attack was happening, the share the model flagged"><div class="k">Recall</div><div class="v" id="pRec">--</div><div class="bar2"><i id="bRec"></i></div></div>
-          <div class="pm" title="Balance of precision and recall"><div class="k">F1</div><div class="v" id="pF1">--</div><div class="bar2"><i id="bF1"></i></div></div>
-          <div class="pm" title="Real held-out attacks with at least one alarm"><div class="k">Attacks caught</div><div class="v" id="pCaught">--</div></div>
-          <div class="pm" title="Average time from attack start to first alarm"><div class="k">Avg. delay</div><div class="v" id="pDelay">--</div></div>
-          <div class="pm" title="Alarms with no attack, per day of normal operation"><div class="k">False alarms</div><div class="v" id="pFa">--</div></div>
-        </div>
-        <div class="pf" id="perfFoot"></div>
-      </div>
+      <!-- Model performance removed -->
     </section>
 
     <section aria-label="Telemetry">
@@ -261,7 +251,7 @@ body.briefing .console-only{display:none}
       <div class="legend">
         <span><i style="background:var(--tele)"></i>Reported</span>
         <span><i style="background:repeating-linear-gradient(90deg,#fff 0 3px,transparent 3px 6px);height:2px"></i>Physics estimate</span>
-        <span><i style="background:#ff3b4e55;border:1px solid var(--red)"></i>Detector alarm</span>
+        <span><i style="background:#ff3b4e55;border:1px solid var(--red)"></i>System alarm</span>
         <span id="lgTruth"><i style="background:#a08bff33;border:1px solid var(--violet)"></i>Real attack (ground truth)</span>
         <span><i style="background:repeating-linear-gradient(45deg,#ffb12e55 0 2px,transparent 2px 5px)"></i>Other-stage attack, out of scope</span>
       </div>
@@ -269,15 +259,9 @@ body.briefing .console-only{display:none}
 
     <section aria-label="Incidents">
       <div class="head"><h2>Incidents</h2><span id="incCount">0 raised</span></div>
-      <div class="feed" id="feed"><div class="empty">No incidents yet. Press play to replay the held-out test period; the detector raises an incident whenever its score crosses the alarm threshold.</div></div>
+      <div class="feed" id="feed"><div class="empty">No incidents active. Press play to monitor the plant; incidents will be raised automatically if anomalous behaviour is detected.</div></div>
     </section>
   </main>
-
-  <div class="brief" id="brief" aria-label="Briefing slides">
-    <div class="slide" id="slide" aria-live="polite"></div>
-    <div class="snav"><div class="dots" id="dots"></div><span class="count" id="scount"></span>
-      <button id="sPrev">Previous</button><button class="primary" id="sNext">Next</button></div>
-  </div>
 
   <footer class="time">
     <div class="ctrls">
@@ -370,12 +354,13 @@ function load(R){
   if (!R.replay || !Object.keys(R.replay).length) { $("loadStatus").textContent = "results.json has no replay data. Run run_experiments.py first."; $("drop").classList.add("on"); return; }
   S.R = R;
   const names = Object.keys(R.replay);
-  const label = n => (R.experiments.find(e => e.name === n) || {}).label || n;
-  $("detector").innerHTML = names.map(n => `<option value="${n}">${label(n)}</option>`).join("");
-  const pref = store.get("detector", null);
   const order = ["sim_ft","real_only","sim_noanom_ft","sim_only","physics_only"];
-  const pick = names.includes(pref) ? pref : (order.find(n => names.includes(n)) || names[0]);
-  $("detector").value = pick;
+  const pick = names.includes("sim_ft") ? "sim_ft" : (order.find(n => names.includes(n)) || names[0]);
+  if ($("detector")) {
+    const label = n => (R.experiments.find(e => e.name === n) || {}).label || n;
+    $("detector").innerHTML = names.map(n => `<option value="${n}">${label(n)}</option>`).join("");
+    $("detector").value = pick;
+  }
   if (R.smoke_test) { $("warn").textContent = "Smoke-test results: these numbers are meaningless. Run run_experiments.py without --smoke for real results."; $("warn").classList.add("on"); }
   S.i = Math.round(7200 / 15 * 0.75);
   selectDetector(pick, true);
@@ -464,8 +449,10 @@ function plantMarkup(){
   <text x="314" y="233" text-anchor="end" ${M} font-size="9.5" fill="${COL.faint}">to stage 2</text>
   <g id="p1" transform="translate(252 250)"><circle r="11" fill="${COL.panel}" stroke="${COL.dim}" stroke-width="1.5"/><path d="M-5 -5 L7 0 L-5 5 Z" fill="${COL.dim}"/></g>
   <text x="252" y="275" text-anchor="middle" ${M} font-size="10" fill="${COL.text}">P101</text>
+  <text id="p1State" x="272" y="253" text-anchor="start" ${M} font-size="9" fill="${COL.dim}">--</text>
   <g id="p2" transform="translate(252 286)"><circle r="11" fill="${COL.panel}" stroke="${COL.dim}" stroke-width="1.5"/><path d="M-5 -5 L7 0 L-5 5 Z" fill="${COL.dim}"/></g>
   <text x="252" y="310" text-anchor="middle" ${M} font-size="10" fill="${COL.text}">P102</text>
+  <text id="p2State" x="272" y="289" text-anchor="start" ${M} font-size="9" fill="${COL.dim}">--</text>
   <rect id="scopeHatch" x="0" y="0" width="320" height="316" fill="url(#hatch)" opacity="0"/>`;
 }
 const LV = v => 268 - Math.max(0, Math.min(1100, v)) / 1100 * 186;   // level (mm) -> svg y
@@ -491,11 +478,14 @@ function updatePlant(i, alarm, scope){
   const mv = d.MV101[i];
   $("valveState").textContent = mv === 2 ? "OPEN" : mv === 1 ? "CLOSED" : "MOVING";
   $("valve").querySelector("path").setAttribute("fill", mv === 2 ? COL.tele : mv === 0 ? COL.amber : COL.panel);
-  for (const [id, on] of [["p1", d.P101[i] === 2], ["p2", d.P102[i] === 2]]) {
+  const p1On = d.P101[i] === 2, p2On = d.P102[i] === 2;
+  for (const [id, on] of [["p1", p1On], ["p2", p2On]]) {
     const g = $(id); g.querySelector("circle").setAttribute("stroke", on ? COL.tele : COL.dim);
     g.querySelector("path").setAttribute("fill", on ? COL.tele : COL.faint);
   }
-  const inflow = d.FIT101[i] > 0.3, out = d.P101[i] === 2 || d.P102[i] === 2;
+  if ($("p1State")) { $("p1State").textContent = p1On ? "ON" : "OFF"; $("p1State").setAttribute("fill", p1On ? COL.tele : COL.dim); }
+  if ($("p2State")) { $("p2State").textContent = p2On ? "ON" : "OFF"; $("p2State").setAttribute("fill", p2On ? COL.amber : COL.dim); }
+  const inflow = d.FIT101[i] > 0.3, out = p1On || p2On;
   $("flowIn").style.opacity = inflow ? 1 : 0; $("flowOut").style.opacity = out ? 1 : 0;
   $("scopeHatch").setAttribute("opacity", scope ? .35 : 0);
 }
@@ -749,7 +739,7 @@ function buildScorecard(){
 }
 function markScorecard(){ if ($("scoreBody")) for (const tr of $("scoreBody").querySelectorAll("tr")) tr.classList.toggle("cur", tr.dataset.n === S.name); updatePerf(); }
 function updatePerf(){
-  if (!S.R) return;
+  if (!S.R || !$("perfWho")) return;
   const ex = S.R.experiments.filter(e => e.name === S.name), fmax = Math.max(...ex.map(e => e.fraction)), e = ex.find(x => x.fraction === fmax);
   if (!e) return;
   const m = e.mean, pct = v => v == null ? "--" : Math.round(v * 100) + "<small>%</small>";
@@ -781,9 +771,23 @@ function frame(force){
   const g = S.gap[i]; $("vGap").textContent = (g >= 0 ? "+" : "") + g.toFixed(1);
   $("gapFill").style.width = Math.min(100, Math.abs(g) / 300 * 100) + "%";
   $("roGap").classList.toggle("bad", Math.abs(g) > 30);
+  const mv = d.MV101[i];
+  const p1On = d.P101[i] === 2, p2On = d.P102[i] === 2;
+  if ($("vValve")) {
+    $("vValve").textContent = mv === 2 ? "OPEN" : mv === 1 ? "CLOSED" : "MOVING";
+    $("roValve").classList.toggle("ok", mv === 2);
+  }
+  if ($("vPump")) {
+    $("vPump").textContent = (p1On && p2On) ? "P1 & P2 ON" : p1On ? "P101 ON" : p2On ? "P102 ON" : "ALL OFF";
+    $("roPump").classList.toggle("ok", p1On && !p2On);
+    $("roPump").classList.toggle("bad", p2On);
+  }
   $("vFit").textContent = d.FIT101[i].toFixed(2);
-  $("vScore").textContent = d.score[i].toFixed(3); $("vThr").textContent = "thr " + d.threshold.toFixed(3);
-  $("roScore").classList.toggle("bad", d.score[i] >= d.threshold && !scope);
+  const underAttack = d.score[i] >= d.threshold && !scope;
+  $("vScore").textContent = underAttack ? "UNDER ATTACK" : (scope ? "OUT OF SCOPE" : "NORMAL");
+  $("vThr").textContent = "";
+  $("roScore").classList.toggle("bad", underAttack);
+  $("roScore").classList.toggle("ok", !underAttack && !scope);
   updatePlant(i, !!active, scope);
   drawTele(); drawScrub();
 }
@@ -803,7 +807,7 @@ function setPlaying(p){ S.playing = p; $("play").textContent = p ? "Pause" : "Pl
 /* ------------------------------------------------------------------ controls */
 $("play").onclick = () => { if (actx && actx.state === "suspended") actx.resume(); setPlaying(!S.playing); };
 $("speed").onchange = e => S.speed = +e.target.value;
-$("detector").onchange = e => selectDetector(e.target.value);
+if ($("detector")) $("detector").onchange = e => selectDetector(e.target.value);
 $("nextInc").onclick = () => { const nx = S.incidents.find(x => x.s > S.i + 1); if (nx) { seek(nx.s - Math.round(600 / S.stepSec)); setPlaying(true); } };
 $("truth").onchange = e => { S.truth = e.target.checked; store.set("truth", S.truth); $("lgTruth").style.display = S.truth ? "" : "none"; renderFeed(); frame(true); };
 $("sound").onchange = e => { S.sound = e.target.checked; store.set("sound", S.sound); };
@@ -982,13 +986,14 @@ function showSlide(){
 }
 function setMode(brief){
   document.body.classList.toggle("briefing", brief);
-  $("mConsole").setAttribute("aria-pressed", String(!brief)); $("mBrief").setAttribute("aria-pressed", String(brief));
+  if ($("mConsole")) $("mConsole").setAttribute("aria-pressed", String(!brief));
+  if ($("mBrief")) $("mBrief").setAttribute("aria-pressed", String(brief));
   if (brief) { setPlaying(false); if (S.R) buildSlides(); } else frame(true);
 }
-$("mConsole").onclick = () => setMode(false);
-$("mBrief").onclick = () => setMode(true);
-$("sPrev").onclick = () => { if (B.k > 0) { B.k--; showSlide(); } };
-$("sNext").onclick = () => { if (B.k < B.slides.length - 1) { B.k++; showSlide(); } };
+if ($("mConsole")) $("mConsole").onclick = () => setMode(false);
+if ($("mBrief")) $("mBrief").onclick = () => setMode(true);
+if ($("sPrev")) $("sPrev").onclick = () => { if (B.k > 0) { B.k--; showSlide(); } };
+if ($("sNext")) $("sNext").onclick = () => { if (B.k < B.slides.length - 1) { B.k++; showSlide(); } };
 addEventListener("keydown", e => {
   if (!document.body.classList.contains("briefing") || e.target.matches("input,select,textarea")) return;
   if (e.key === "ArrowRight" || e.key === "PageDown") $("sNext").click();
