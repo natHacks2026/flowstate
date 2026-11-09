@@ -82,20 +82,39 @@ def physics_score(w: dict) -> np.ndarray:
     return np.abs(w["x"][:, -12:, sd.FEATURES.index("mb_resid_z")]).max(axis=1)
 
 
-def p1_lockout_for_df(df: pd.DataFrame) -> np.ndarray:
-    """Detects premature pump abort: P101 run < 500s (normal minimum is 659s).
-    Flags the premature run and subsequent lockout rest period."""
+def p1_lockout_for_df(df: pd.DataFrame, min_run_s: float = 500.0) -> np.ndarray:
+    """Causal premature pump abort detection:
+    Tracks P101 run time forward in time. When P101 shuts off prematurely (< 500s),
+    flags from the shut-off edge through the entire subsequent lockout rest period.
+    Does not use groupby or look ahead into future steps."""
     if "P101" not in df:
         return np.zeros(len(df), dtype=float)
-    p1 = (df["P101"] == 2)
-    grp = (p1 != p1.shift(1)).cumsum()
-    run_lens = df.groupby(grp)["P101"].transform("count") * sd.SAMPLE_SECONDS
-    short_on_grps = [g for g in grp[p1 & (run_lens < 500)].unique() if g > 1]
-    if not short_on_grps:
-        return np.zeros(len(df), dtype=float)
-    lockout_grps = [g + 1 for g in short_on_grps]
-    is_lockout = grp.isin(np.concatenate([short_on_grps, lockout_grps]))
-    return is_lockout.to_numpy().astype(float)
+
+    p1 = (df["P101"] == 2).to_numpy()
+    n = len(p1)
+    is_lockout = np.zeros(n, dtype=float)
+    current_run_s = 0.0
+    saw_rising_edge = False
+    in_lockout = False
+
+    for t in range(n):
+        if p1[t]:
+            if t > 0 and not p1[t - 1]:
+                saw_rising_edge = True
+                current_run_s = 0.0
+            in_lockout = False
+            if saw_rising_edge:
+                current_run_s += sd.SAMPLE_SECONDS
+        else:
+            if t > 0 and p1[t - 1] and saw_rising_edge:
+                if current_run_s < min_run_s:
+                    in_lockout = True
+                current_run_s = 0.0
+                saw_rising_edge = False
+            if in_lockout:
+                is_lockout[t] = 1.0
+
+    return is_lockout
 
 
 def invariant_score(w: dict) -> np.ndarray:

@@ -88,11 +88,20 @@ def pick_threshold(score: np.ndarray, label: np.ndarray, masked: np.ndarray,
                 best_t, best_f1 = float(t), f1
         return best_t
     aid = attack_id if attack_id is not None else label.astype(int)
-    for t in cands:  # ascending: the first that meets the budget catches the most
+    normal_mask = (label == 0) & keep
+    best_t = float(cands[-1])
+    # Search descending: step down from high threshold to find maximum sensitivity
+    # while ensuring normal false positive rate <= 2% and false alarms meet the budget
+    for t in reversed(cands):
+        fpr = float(((score >= t) & normal_mask).sum() / max(1, normal_mask.sum()))
+        if fpr > 0.02:
+            break
         fa = events(score >= t, label, masked, aid, sample_seconds)["false_alarms_per_day"]
         if fa is not None and fa <= max_fa_per_day:
-            return float(t)
-    return float(cands[-1])
+            best_t = float(t)
+        elif best_t != float(cands[-1]):
+            break  # Exceeded allowed false alarms; stop lowering threshold
+    return best_t
 
 
 def full_report(score, label, masked, attack_id, threshold, sample_seconds) -> dict:
